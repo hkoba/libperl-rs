@@ -12,3 +12,4 @@ links = "perl"
 
 [build-dependencies]
 bindgen = "0.44"
+regex = "1"
