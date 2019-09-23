@@ -4,9 +4,10 @@ use std::env;
 use std::path::PathBuf;
 
 pub mod process_util {
-    pub use std::process::{Command, Output};
+    pub use std::process::{Command, Output, ExitStatus};
     pub use std::io::{Error, ErrorKind};
     pub use std::result::Result;
+    pub use std::path::Path;
 
     pub fn make_command(cmd_name: &str, args: &[&str]) -> Command {
         let mut cmd = Command::new(cmd_name);
@@ -25,6 +26,15 @@ pub mod process_util {
         }
 
         Ok(res.to_string())
+    }
+
+    pub fn run_patch(dest_fn: &str, patch_fn: &str) -> ExitStatus {
+        Command::new("patch")
+            .arg("-t")
+            .arg(dest_fn)
+            .arg(patch_fn)
+            .status()
+            .unwrap()
     }
 }
 
@@ -65,6 +75,7 @@ fn main() {
         .header("wrapper.h")
         .clang_arg("-DPERL_CORE")
         .clang_args(emb_opts.iter())
+        .opaque_type("timex")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -72,7 +83,17 @@ fn main() {
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_file = out_path.join("bindings.rs");
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(out_file.to_str().unwrap())
         .expect("Couldn't write bindings!");
+
+    let topdir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let rc = process_util::run_patch(
+        out_file.to_str().unwrap(),
+        topdir.join("src/bindings.patch").to_str().unwrap()
+    );
+    if ! rc.success() {
+        panic!("patch failed")
+    }
 }

@@ -1,0 +1,43 @@
+--- ./bindings.rs.tmp	2019-09-23 13:44:43.738229188 +0900
++++ ./bindings.rs	2019-09-21 11:47:05.105474900 +0900
+@@ -1507,7 +1505,6 @@
+ pub const NETDB_INTERNAL: i32 = -1;
+ pub const NETDB_SUCCESS: u32 = 0;
+ pub const NO_ADDRESS: u32 = 4;
+-pub const IPPORT_RESERVED: u32 = 1024;
+ pub const SCOPE_DELIMITER: u8 = 37u8;
+ pub const GAI_WAIT: u32 = 0;
+ pub const GAI_NOWAIT: u32 = 1;
+@@ -1755,19 +1752,9 @@
+ pub const __FP_LONG_MAX: u64 = 9223372036854775807;
+ pub const FP_LLOGB0: i64 = -9223372036854775808;
+ pub const FP_LLOGBNAN: i64 = -9223372036854775808;
+-pub const FP_INT_UPWARD: u32 = 0;
+-pub const FP_INT_DOWNWARD: u32 = 1;
+-pub const FP_INT_TOWARDZERO: u32 = 2;
+-pub const FP_INT_TONEARESTFROMZERO: u32 = 3;
+-pub const FP_INT_TONEAREST: u32 = 4;
+ pub const __MATH_DECLARING_DOUBLE: u32 = 1;
+ pub const __MATH_DECLARING_FLOATN: u32 = 0;
+ pub const __MATH_DECLARE_LDOUBLE: u32 = 1;
+-pub const FP_NAN: u32 = 0;
+-pub const FP_INFINITE: u32 = 1;
+-pub const FP_ZERO: u32 = 2;
+-pub const FP_SUBNORMAL: u32 = 3;
+-pub const FP_NORMAL: u32 = 4;
+ pub const MATH_ERRNO: u32 = 1;
+ pub const MATH_ERREXCEPT: u32 = 2;
+ pub const math_errhandling: u32 = 3;
+@@ -2086,12 +2073,9 @@
+ pub const PERLIO_LAYERS: u32 = 1;
+ pub const PERLIO_NOT_STDIO: u32 = 1;
+ pub const _CANNOT: &'static [u8; 7usize] = b"CANNOT\0";
+-pub const fprintf: &'static [u8; 7usize] = b"CANNOT\0";
+-pub const printf: &'static [u8; 7usize] = b"CANNOT\0";
+ pub const stdin: &'static [u8; 7usize] = b"CANNOT\0";
+ pub const stdout: &'static [u8; 7usize] = b"CANNOT\0";
+ pub const stderr: &'static [u8; 7usize] = b"CANNOT\0";
+-pub const fscanf: &'static [u8; 7usize] = b"CANNOT\0";
+ pub const PERLIO_DUP_CLONE: u32 = 1;
+ pub const PERLIO_DUP_FD: u32 = 2;
+ pub const PerlSIO_stdin: &'static [u8; 7usize] = b"CANNOT\0";
