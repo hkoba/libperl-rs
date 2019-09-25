@@ -1,6 +1,6 @@
 use super::libperl_sys::*;
 
-use std::ptr;
+// use std::ptr;
 use std::ffi::{CString};
 use std::os::raw::{c_char, c_int};
 
@@ -33,21 +33,25 @@ impl Perl {
         }
     }
     
-    pub fn parse(&mut self, args: &[&str]) -> i32 {
+    pub fn parse(&mut self, args: &[&str], envp: &[&str]) -> i32 {
         self.args = args.iter().map(|&arg| CString::new(arg).unwrap() )
             .collect::<Vec<CString>>();
-        let c_args = self.args.iter().map(|arg| arg.as_ptr() as *mut c_char)
-            .collect::<Vec<*mut c_char>>();
-        // let c_env = self.env.iter().map(|arg| arg.as_ptr()).collect::<Vec<*const c_char>>();
+        self.env = envp.iter().map(|&arg| CString::new(arg).unwrap() )
+            .collect::<Vec<CString>>();
 
         unsafe {
             perl_parse(
                 self.my_perl,
                 None,
-                c_args.len() as c_int,
-                c_args.as_ptr() as *mut *mut c_char,
-                ptr::null_mut(),
+                self.args.len() as c_int,
+                make_argv_from_vec(&self.args).as_ptr() as *mut *mut c_char,
+                make_argv_from_vec(&self.env).as_ptr() as *mut *mut c_char,
             )
         }
     }
+}
+
+pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {
+    args.iter().map(|arg| arg.as_ptr() as *mut c_char)
+        .collect::<Vec<*mut c_char>>()
 }
