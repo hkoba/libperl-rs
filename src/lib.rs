@@ -1,10 +1,13 @@
 extern crate libperl_sys;
 
+pub mod perl;
 
 #[cfg(test)]
 mod tests {
+    use super::perl::*;
+
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        let perl = Perl::new();
     }
 }
