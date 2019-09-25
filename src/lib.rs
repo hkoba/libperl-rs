@@ -8,6 +8,8 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let perl = Perl::new();
+        let mut perl = Perl::new();
+        
+        let _rc = perl.parse(&["", "-e", r#"use strict; $foo"#]);
     }
 }
