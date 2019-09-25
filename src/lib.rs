@@ -1,3 +1,6 @@
+extern crate libperl_sys;
+
+
 #[cfg(test)]
 mod tests {
     #[test]
