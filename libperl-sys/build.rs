@@ -76,6 +76,24 @@ fn main() {
         .clang_arg("-DPERL_CORE")
         .clang_args(emb_opts.iter())
         .opaque_type("timex")
+
+        .blacklist_item("IPPORT_RESERVED")
+
+        // .blacklist_item("^FP_") // Not worked.
+        .blacklist_item("FP_INT_UPWARD")
+        .blacklist_item("FP_INT_DOWNWARD")
+        .blacklist_item("FP_INT_TOWARDZERO")
+        .blacklist_item("FP_INT_TONEARESTFROMZERO")
+        .blacklist_item("FP_INT_TONEAREST")
+        .blacklist_item("FP_NAN")
+        .blacklist_item("FP_INFINITE")
+        .blacklist_item("FP_ZERO")
+        .blacklist_item("FP_SUBNORMAL")
+        .blacklist_item("FP_NORMAL")
+
+        .blacklist_function("fprintf")
+        .blacklist_function("printf")
+        .blacklist_function("fscanf")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -88,12 +106,12 @@ fn main() {
         .write_to_file(out_file.to_str().unwrap())
         .expect("Couldn't write bindings!");
 
-    let topdir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let rc = process_util::run_patch(
-        out_file.to_str().unwrap(),
-        topdir.join("src/bindings.patch").to_str().unwrap()
-    );
-    if ! rc.success() {
-        panic!("patch failed")
-    }
+    // let topdir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    // let rc = process_util::run_patch(
+    //     out_file.to_str().unwrap(),
+    //     topdir.join("src/bindings.patch").to_str().unwrap()
+    // );
+    // if ! rc.success() {
+    //     panic!("patch failed")
+    // }
 }
