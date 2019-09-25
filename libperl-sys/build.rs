@@ -70,30 +70,35 @@ fn main() {
     // to bindgen, and lets you build up options for
     // the resulting bindings.
     let bindings = bindgen::Builder::default()
+
+        .rustfmt_bindings(true)
+
         // The input header we would like to generate
         // bindings for.
         .header("wrapper.h")
+
         .clang_arg("-DPERL_CORE")
         .clang_args(emb_opts.iter())
+
         .opaque_type("timex")
 
         .blacklist_item("IPPORT_RESERVED")
 
-        // .blacklist_item("^FP_") // Not worked.
-        .blacklist_item("FP_INT_UPWARD")
-        .blacklist_item("FP_INT_DOWNWARD")
-        .blacklist_item("FP_INT_TOWARDZERO")
-        .blacklist_item("FP_INT_TONEARESTFROMZERO")
-        .blacklist_item("FP_INT_TONEAREST")
-        .blacklist_item("FP_NAN")
-        .blacklist_item("FP_INFINITE")
-        .blacklist_item("FP_ZERO")
-        .blacklist_item("FP_SUBNORMAL")
-        .blacklist_item("FP_NORMAL")
+        .blacklist_item("FP_.*")
+        // .blacklist_item("FP_INT_UPWARD")
+        // .blacklist_item("FP_INT_DOWNWARD")
+        // .blacklist_item("FP_INT_TOWARDZERO")
+        // .blacklist_item("FP_INT_TONEARESTFROMZERO")
+        // .blacklist_item("FP_INT_TONEAREST")
+        // .blacklist_item("FP_NAN")
+        // .blacklist_item("FP_INFINITE")
+        // .blacklist_item("FP_ZERO")
+        // .blacklist_item("FP_SUBNORMAL")
+        // .blacklist_item("FP_NORMAL")
 
-        .blacklist_function("fprintf")
-        .blacklist_function("printf")
-        .blacklist_function("fscanf")
+        .blacklist_function("f?printf")
+        .blacklist_function("f?scanf")
+
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
