@@ -44,12 +44,20 @@ pub mod perl_config {
     use regex::Regex;
     // use std::collections::HashMap;
 
-    pub fn perl_embed_opts() -> Result<Vec<String>, Error> {
-        let mut cmd = make_command("perl", &["-MExtUtils::Embed", "-e", "ccopts"]);
+    pub fn perl_embed_ccopts() -> Result<Vec<String>, Error> {
+        perl_embed_opts("ccopts", r"^-[ID]")
+    }
+
+    pub fn perl_embed_ldopts() -> Result<Vec<String>, Error> {
+        perl_embed_opts("ldopts", r"^-[lL]")
+    }
+
+    pub fn perl_embed_opts(cmd: &str, prefix: &str) -> Result<Vec<String>, Error> {
+        let mut cmd = make_command("perl", &["-MExtUtils::Embed", "-e", cmd]);
 
         let out_str = process_command_output(cmd.output()?)?;
 
-        let re = Regex::new(r"^-[ID]").unwrap();
+        let re = Regex::new(prefix).unwrap();
         Ok(out_str
             .split_whitespace()
             .map(String::from)
@@ -60,11 +68,27 @@ pub mod perl_config {
 
 
 fn main() {
-    // Tell cargo to tell rustc to link the system bzip2
-    // shared library.
-    println!("cargo:rustc-link-lib=perl");
 
-    let emb_opts = perl_config::perl_embed_opts().unwrap();
+    // println!("cargo:rustc-link-lib=perl"); // should be generated automatically.
+    let ldopts = perl_config::perl_embed_ldopts().unwrap();
+    println!("# perl ldopts = {:?}, ", ldopts);
+
+    for opt in perl_config::perl_embed_ldopts().unwrap().iter() {
+        if opt.starts_with("-L") {
+            let libpath = opt.get(2..).unwrap();
+            println!("cargo:rustc-link-search={}", libpath);
+            if std::path::Path::new(libpath).file_name()
+                == Some(std::ffi::OsStr::new("CORE")) {
+                println!("cargo:rustc-cdylib-link-arg=-Wl,-rpath,{}", libpath);
+            }
+        }
+        else if opt.starts_with("-l") {
+            println!("cargo:rustc-link-lib={}", opt.get(2..).unwrap());
+        }
+    }
+
+    let ccopts = perl_config::perl_embed_ccopts().unwrap();
+    println!("# perl ccopts = {:?}, ", ccopts);
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -78,7 +102,7 @@ fn main() {
         .header("wrapper.h")
 
         .clang_arg("-DPERL_CORE")
-        .clang_args(emb_opts.iter())
+        .clang_args(ccopts.iter())
 
         .opaque_type("timex")
 
