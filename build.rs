@@ -1,8 +1,3 @@
-extern crate bindgen;
-
-use std::env;
-use std::path::PathBuf;
-
 pub mod process_util {
     pub use std::process::{Command, Output, ExitStatus};
     pub use std::io::{Error, ErrorKind};
@@ -85,65 +80,6 @@ pub mod perl_config {
     }
 }
 
-
 fn main() {
-
     perl_config::emit_cargo_ldopts();
-
-    let ccopts = perl_config::perl_embed_ccopts().unwrap();
-    println!("# perl ccopts = {:?}, ", ccopts);
-
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
-    let bindings = bindgen::Builder::default()
-
-        .rustfmt_bindings(true)
-
-        // The input header we would like to generate
-        // bindings for.
-        .header("wrapper.h")
-
-        .clang_arg("-DPERL_CORE")
-        .clang_args(ccopts.iter())
-
-        .opaque_type("timex")
-
-        .blacklist_item("IPPORT_RESERVED")
-
-        .blacklist_item("FP_.*")
-        // .blacklist_item("FP_INT_UPWARD")
-        // .blacklist_item("FP_INT_DOWNWARD")
-        // .blacklist_item("FP_INT_TOWARDZERO")
-        // .blacklist_item("FP_INT_TONEARESTFROMZERO")
-        // .blacklist_item("FP_INT_TONEAREST")
-        // .blacklist_item("FP_NAN")
-        // .blacklist_item("FP_INFINITE")
-        // .blacklist_item("FP_ZERO")
-        // .blacklist_item("FP_SUBNORMAL")
-        // .blacklist_item("FP_NORMAL")
-
-        .blacklist_function("f?printf")
-        .blacklist_function("f?scanf")
-
-        // Finish the builder and generate the bindings.
-        .generate()
-        // Unwrap the Result and panic on failure.
-        .expect("Unable to generate bindings");
-
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let out_file = out_path.join("bindings.rs");
-    bindings
-        .write_to_file(out_file.to_str().unwrap())
-        .expect("Couldn't write bindings!");
-
-    // let topdir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    // let rc = process_util::run_patch(
-    //     out_file.to_str().unwrap(),
-    //     topdir.join("src/bindings.patch").to_str().unwrap()
-    // );
-    // if ! rc.success() {
-    //     panic!("patch failed")
-    // }
 }
