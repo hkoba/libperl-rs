@@ -10,7 +10,6 @@ repository = "https://github.com/hkoba/libperl-rs.git"
 keywords = ["perl"]
 
 license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
-license-file = "LICENSE"
 
 links = "perl"
 

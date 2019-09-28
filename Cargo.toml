@@ -3,8 +3,19 @@ name = "libperl-rs"
 version = "0.1.0"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2018"
+description = "Run perl5 code in Rust"
+
+repository = "https://github.com/hkoba/libperl-rs.git"
+
+keywords = ["perl"]
+
+license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[badges]
+travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
 
 [lib]
 crate-type = ["rlib", "cdylib"]
