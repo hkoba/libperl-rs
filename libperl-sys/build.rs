@@ -1,7 +1,7 @@
 extern crate bindgen;
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub mod process_util {
     pub use std::process::{Command, Output, ExitStatus};
@@ -85,6 +85,10 @@ pub mod perl_config {
     }
 }
 
+fn is_older_file(dest: &Path, src: &Path) -> bool {
+    dest.metadata().unwrap().modified().unwrap()
+        < src.metadata().unwrap().modified().unwrap()
+}
 
 fn main() {
 
@@ -93,25 +97,49 @@ fn main() {
     let ccopts = perl_config::perl_embed_ccopts().unwrap();
     println!("# perl ccopts = {:?}, ", ccopts);
 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
-    let bindings = bindgen::Builder::default()
+    let src_file_name = "wrapper.h";
+    let src_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join(src_file_name);
 
-        .rustfmt_bindings(true)
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_file = out_path.join("bindings.rs");
+
+    let do_build = if !out_file.exists() {
+        println!("# will generate new {}", out_file.display());
+        true
+    } else if is_older_file(&out_file, &src_path) {
+        println!("# out_file {} is older than src {}"
+                 , out_file.display(), src_path.display());
+        true
+    } else {
+        println!("# out_file {} exists and up-to-date with src {}\n# out_file={{{:?}}} src_file={{{:?}}}"
+                 , out_file.display(), src_path.display()
+                 , out_file.metadata().unwrap().modified()
+                 , src_path.metadata().unwrap().modified()
+        );
+        false
+    };
+
+    if do_build {
+        // The bindgen::Builder is the main entry point
+        // to bindgen, and lets you build up options for
+        // the resulting bindings.
+        let bindings = bindgen::Builder::default()
+
+            .rustfmt_bindings(true)
 
         // The input header we would like to generate
         // bindings for.
-        .header("wrapper.h")
+            .header(src_file_name)
 
-        .clang_arg("-DPERL_CORE")
-        .clang_args(ccopts.iter())
+            .clang_arg("-DPERL_CORE")
+            .clang_args(ccopts.iter())
 
-        .opaque_type("timex")
+            .opaque_type("timex")
 
-        .blacklist_item("IPPORT_RESERVED")
+            .blacklist_item("IPPORT_RESERVED")
 
-        .blacklist_item("FP_.*")
+            .blacklist_item("FP_.*")
         // .blacklist_item("FP_INT_UPWARD")
         // .blacklist_item("FP_INT_DOWNWARD")
         // .blacklist_item("FP_INT_TOWARDZERO")
@@ -123,27 +151,18 @@ fn main() {
         // .blacklist_item("FP_SUBNORMAL")
         // .blacklist_item("FP_NORMAL")
 
-        .blacklist_function("f?printf")
-        .blacklist_function("f?scanf")
+            .blacklist_function("f?printf")
+            .blacklist_function("f?scanf")
 
         // Finish the builder and generate the bindings.
-        .generate()
+            .generate()
         // Unwrap the Result and panic on failure.
-        .expect("Unable to generate bindings");
+            .expect("Unable to generate bindings");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let out_file = out_path.join("bindings.rs");
-    bindings
-        .write_to_file(out_file.to_str().unwrap())
-        .expect("Couldn't write bindings!");
+        // Write the bindings to the $OUT_DIR/bindings.rs file.
+        bindings
+            .write_to_file(out_file.to_str().unwrap())
+            .expect("Couldn't write bindings!");
 
-    // let topdir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    // let rc = process_util::run_patch(
-    //     out_file.to_str().unwrap(),
-    //     topdir.join("src/bindings.patch").to_str().unwrap()
-    // );
-    // if ! rc.success() {
-    //     panic!("patch failed")
-    // }
+    }
 }
