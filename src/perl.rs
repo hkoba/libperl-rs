@@ -74,8 +74,8 @@ pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {
 }
 
 pub fn ensure_terminating_null(mut args: Vec<*mut c_char>) -> Vec<*mut c_char> {
-    //if args.len() == 0 || args.last() == Some(&ptr::null_mut()) {
+    if args.len() == 0 || args.last() != None {
         args.push(ptr::null_mut());
-    //}
+    }
     args
 }
