@@ -6,7 +6,7 @@ use std::env;
 
 fn test() {
     let mut perl = Perl::new();
-    perl.parse_args(env::args(), &[]);
+    perl.parse_env_args(env::args(), env::vars());
 }
 
 // cargo run --example 001_perl_parse_args -- -le 'use strict; $bar'

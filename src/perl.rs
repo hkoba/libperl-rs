@@ -3,6 +3,7 @@ use super::libperl_sys::*;
 use std::ptr;
 use std::ffi::{CString};
 use std::os::raw::{c_char, c_int};
+use std::env;
 
 pub struct Perl {
     debug: bool,
@@ -42,11 +43,12 @@ impl Perl {
         self.perl_parse_1()
     }
     
-    pub fn parse_args(&mut self, args: std::env::Args, envp: &[&str]) -> i32 {
+    pub fn parse_env_args(&mut self, args: env::Args, envp: env::Vars) -> i32 {
         self.args = args.map(|arg| CString::new(arg).unwrap())
             .collect::<Vec<CString>>();
-        self.env = envp.iter().map(|&arg| CString::new(arg).unwrap())
-            .collect::<Vec<CString>>();
+        self.env = envp.map(| (key, value) | CString::new(
+            String::from(&[key, value].join("="))
+        ).unwrap()).collect::<Vec<CString>>();
         
         self.perl_parse_1()
     }
@@ -72,8 +74,8 @@ pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {
 }
 
 pub fn ensure_terminating_null(mut args: Vec<*mut c_char>) -> Vec<*mut c_char> {
-    if args.len() == 0 || args.last() == Some(&ptr::null_mut()) {
-        args.push(ptr::null_mut())
-    }
+    //if args.len() == 0 || args.last() == Some(&ptr::null_mut()) {
+        args.push(ptr::null_mut());
+    //}
     args
 }
