@@ -1,6 +1,7 @@
 use super::process_util::*;
 
 use regex::Regex;
+use std::collections::HashMap;
 
 pub struct PerlConfig {
     perl: String,
@@ -22,21 +23,47 @@ impl PerlConfig {
         }
     }
 
-    pub fn embed_ccopts(&self) -> Result<Vec<String>, Error> {
-        self.embed_opts("ccopts", r"^-[ID]")
+    pub fn command(&self, args: &[&str]) -> Command {
+        make_command(self.perl.as_str(), args)
     }
 
-    pub fn embed_ldopts(&self) -> Result<Vec<String>, Error> {
-        self.embed_opts("ldopts", r"^-[lL]")
+    pub fn read_config(&self, configs: &[&str]) -> Result<HashMap<String, String>, Error> {
+        let config = self.read_raw_config(configs)?;
+        let lines = config.lines().map(String::from).collect();
+        Ok(lines_to_hashmap(lines))
     }
 
-    pub fn embed_opts(&self, cmd: &str, prefix: &str) -> Result<Vec<String>, Error> {
-        let mut cmd = make_command(
-            self.perl.as_str(),
+    pub fn read_raw_config(&self, configs: &[&str]) -> Result<String, Error> {
+        let script = ["-wle", r#"
+    use strict;
+    use Config;
+    print join "\t", $_, ($Config{$_} // '')
+      for @ARGV ? @ARGV : sort keys %Config;
+    "#
+        ];
+        let mut cmd = self.command(&[&script[..], configs].concat());
+        
+        process_command_output(cmd.output()?)
+    }
+
+    pub fn read_ccopts(&self) -> Result<Vec<String>, Error> {
+        self.read_embed_opts("ccopts", r"^-[ID]")
+    }
+
+    pub fn read_ldopts(&self) -> Result<Vec<String>, Error> {
+        self.read_embed_opts("ldopts", r"^-[lL]")
+    }
+
+    pub fn read_raw_embed_opts(&self, cmd: &str) -> Result<String, Error> {
+        let mut cmd = self.command(
             &["-MExtUtils::Embed", "-e", cmd],
         );
 
-        let out_str = process_command_output(cmd.output()?)?;
+        process_command_output(cmd.output()?)
+    }
+
+    pub fn read_embed_opts(&self, cmd: &str, prefix: &str) -> Result<Vec<String>, Error> {
+        let out_str = self.read_raw_embed_opts(cmd)?;
 
         let re = Regex::new(prefix).unwrap();
         Ok(out_str
@@ -47,10 +74,10 @@ impl PerlConfig {
     }
 
     pub fn emit_cargo_ldopts(&self) {
-        let ldopts = self.embed_ldopts().unwrap();
+        let ldopts = self.read_ldopts().unwrap();
         println!("# perl ldopts = {:?}, ", ldopts);
 
-        for opt in self.embed_ldopts().unwrap().iter() {
+        for opt in self.read_ldopts().unwrap().iter() {
             if opt.starts_with("-L") {
                 let libpath = opt.get(2..).unwrap();
                 println!("cargo:rustc-link-search={}", libpath);
@@ -64,4 +91,15 @@ impl PerlConfig {
             }
         }
     }
+}
+
+fn lines_to_hashmap(lines: Vec<String>) -> HashMap<String,String> {
+    let mut dict = HashMap::new();
+    for line in lines.iter() {
+        let kv: Vec<String> = line.splitn(2, '\t').map(String::from).collect();
+        if kv.len() == 2 {
+            dict.insert(kv[0].clone(), kv[1].clone());
+        }
+    }
+    dict
 }

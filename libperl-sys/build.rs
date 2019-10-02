@@ -15,7 +15,7 @@ fn main() {
     let cfg = libperl_config::PerlConfig::default();
     cfg.emit_cargo_ldopts();
 
-    let ccopts = cfg.embed_ccopts().unwrap();
+    let ccopts = cfg.read_ccopts().unwrap();
     println!("# perl ccopts = {:?}, ", ccopts);
 
     let src_file_name = "wrapper.h";
