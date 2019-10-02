@@ -14,10 +14,16 @@ fi
 
 #========================================
 
-zparseopts -D -K x=o_xtrace \
+zparseopts -D -K x=o_xtrace n=o_dryrun \
            -image:=o_image -target:=o_targetDir
 
 if (($#o_xtrace)); then set -x; fi
+
+function x {
+    print -r -- '#' ${(@q-)argv}
+    if (($#o_dryrun)); then return; fi
+    "$@"
+}
 
 if (($#o_image)); then
     imageName=${o_image[2]#=}
@@ -36,16 +42,31 @@ fi
 
 #========================================
 
-exec docker run --rm -it \
+cmdList=(
+    'apt update'
+    'apt install -y llvm-dev libclang-dev clang'
+    'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh'
+    'sh rustup.sh -y'
+    'source $HOME/.cargo/env'
+    'cd /app'
+)
+
+if ((! $#o_targetDir)); then
+    cmdList+=('cargo clean')
+fi
+
+cmdList+=(
+    'cargo build -vv'
+)
+
+if ((ARGC)); then
+    cmdList+=("${(j/ /)${(@q-)argv}}")
+else
+    cmdList+=("cargo test")
+fi
+
+
+x exec docker run --rm -it \
      -v $topDir:/app${SELINUX} \
      $volOpts \
-     $imageName /bin/bash -c '
- apt update &&
- apt install -y llvm-dev libclang-dev clang &&
- curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh &&
- sh rustup.sh -y &&
- source $HOME/.cargo/env &&
- cd /app &&
- cargo clean &&
- cargo build -vv &&
- cargo test '"$*"
+     $imageName /bin/bash -c "${(j/&&/)cmdList}"
