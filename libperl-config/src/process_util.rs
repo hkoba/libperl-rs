@@ -16,10 +16,14 @@ pub fn process_command_output(out: Output) -> Result<String, Error> {
 
     if out.stderr.len() > 0 {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(Error::new(ErrorKind::Other, [err, res].join(": ")));
+        return Err(other_error([err, res].join(": ")));
     }
 
     Ok(res.to_string())
+}
+
+pub fn other_error(err: String) -> Error {
+    Error::new(ErrorKind::Other, err)
 }
 
 pub fn run_patch(dest_fn: &str, patch_fn: &str) -> ExitStatus {

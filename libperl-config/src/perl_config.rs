@@ -3,6 +3,8 @@ use super::process_util::*;
 use regex::Regex;
 use std::collections::HashMap;
 
+type ConfigDict = HashMap<String, String>;
+
 pub struct PerlConfig {
     perl: String,
 }
@@ -27,7 +29,15 @@ impl PerlConfig {
         make_command(self.perl.as_str(), args)
     }
 
-    pub fn read_config(&self, configs: &[&str]) -> Result<HashMap<String, String>, Error> {
+    pub fn is_defined_in(dict: &ConfigDict, name: &str) -> Result<bool, Error> {
+        if let Some(value) = dict.get(name) {
+            Ok(value == "define")
+        } else {
+            Err(other_error("No such entry".to_string()))
+        }
+    }
+
+    pub fn read_config(&self, configs: &[&str]) -> Result<ConfigDict, Error> {
         let config = self.read_raw_config(configs)?;
         let lines = config.lines().map(String::from).collect();
         Ok(lines_to_hashmap(lines))
@@ -93,7 +103,7 @@ impl PerlConfig {
     }
 }
 
-fn lines_to_hashmap(lines: Vec<String>) -> HashMap<String,String> {
+fn lines_to_hashmap(lines: Vec<String>) -> ConfigDict {
     let mut dict = HashMap::new();
     for line in lines.iter() {
         let kv: Vec<String> = line.splitn(2, '\t').map(String::from).collect();

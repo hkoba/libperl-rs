@@ -1,6 +1,6 @@
 extern crate bindgen;
 
-use libperl_config;
+use libperl_config::*;
 
 use std::env;
 use std::path::{PathBuf, Path};
@@ -12,11 +12,21 @@ fn is_older_file(dest: &Path, src: &Path) -> bool {
 
 fn main() {
 
-    let cfg = libperl_config::PerlConfig::default();
-    cfg.emit_cargo_ldopts();
+    let perl = PerlConfig::default();
+    perl.emit_cargo_ldopts();
 
-    let ccopts = cfg.read_ccopts().unwrap();
+    let ccopts = perl.read_ccopts().unwrap();
     println!("# perl ccopts = {:?}, ", ccopts);
+
+    let configs = ["useithreads"];
+    let dict = perl.read_config(&configs).unwrap();
+
+    for &cfg in configs.iter() {
+        println!("# perl config {} = {:?}", cfg, dict.get(&String::from(cfg)));
+        if PerlConfig::is_defined_in(&dict, cfg).unwrap() {
+            println!("cargo:rustc-cfg=perl_{}", cfg);
+        }
+    }
 
     let src_file_name = "wrapper.h";
     let src_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
