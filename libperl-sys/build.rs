@@ -60,6 +60,8 @@ fn main() {
 
             .opaque_type("timex")
 
+            .blacklist_type("max_align_t")
+
             .blacklist_item("IPPORT_RESERVED")
 
             .blacklist_item("FP_.*")
