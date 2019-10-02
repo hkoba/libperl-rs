@@ -26,6 +26,9 @@ impl std::fmt::Display for op {
 mod tests {
     #[test]
     fn it_works() {
-        let perl = perl_alloc();
+        let perl = unsafe { super::perl_alloc() };
+        unsafe {
+            super::perl_construct(perl);
+        };
     }
 }
