@@ -29,7 +29,11 @@ fn scan_ops(mut op: *const op) {
 fn test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
-    scan_ops(unsafe {*perl.my_perl}.Imain_start);
+    if cfg!(perl_useithreads) {
+        scan_ops(unsafe {*perl.my_perl}.Imain_start);
+    } else {
+        println!("Nothing nown about Imain_start");
+    }
 }
 
 

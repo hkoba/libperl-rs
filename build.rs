@@ -1,6 +1,8 @@
-use libperl_config;
+use libperl_config::*;
 
 fn main() {
-    let cfg = libperl_config::PerlConfig::default();
-    cfg.emit_cargo_ldopts();
+    let perl = PerlConfig::default();
+    perl.emit_cargo_ldopts();
+
+    perl.emit_features(&["useithreads"]);
 }

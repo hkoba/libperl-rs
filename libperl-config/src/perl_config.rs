@@ -56,6 +56,19 @@ impl PerlConfig {
         process_command_output(cmd.output()?)
     }
 
+    pub fn emit_features(&self, configs: &[&str]) -> ConfigDict {
+        let dict = self.read_config(&configs).unwrap();
+
+        for &cfg in configs.iter() {
+            println!("# perl config {} = {:?}", cfg, dict.get(&String::from(cfg)));
+            if Self::is_defined_in(&dict, cfg).unwrap() {
+                println!("cargo:rustc-cfg=perl_{}", cfg);
+            }
+        }
+        
+        dict
+    }
+
     pub fn read_ccopts(&self) -> Result<Vec<String>, Error> {
         self.read_embed_opts("ccopts", r"^-[ID]")
     }
