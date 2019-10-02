@@ -28,3 +28,5 @@ crate-type = ["rlib", "cdylib"]
 [build-dependencies]
 bindgen = "0.44"
 regex = "1"
+
+libperl-config = {"path" = "../libperl-config", version = "0.1"}
