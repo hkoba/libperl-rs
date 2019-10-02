@@ -10,6 +10,23 @@ fn is_older_file(dest: &Path, src: &Path) -> bool {
         < src.metadata().unwrap().modified().unwrap()
 }
 
+fn cargo_topdir_file(file: &str) -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(file)
+}
+
+fn cargo_outdir() -> PathBuf {
+    PathBuf::from(env::var("OUT_DIR").unwrap())
+}
+
+fn look_updated_against<'a>(checked: &Path, against: &[&'a Path]) -> Option<&'a Path> {
+    for f in against.iter() {
+        if is_older_file(checked, f) {
+            return Some(f)
+        }
+    }
+    None
+}
+
 fn main() {
 
     let perl = PerlConfig::default();
@@ -21,20 +38,24 @@ fn main() {
     perl.emit_features(&["useithreads"]);
 
     let src_file_name = "wrapper.h";
-    let src_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join(src_file_name);
+    let src_path = cargo_topdir_file(src_file_name);
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let out_file = out_path.join("bindings.rs");
+    let out_file = cargo_outdir().join("bindings.rs");
 
     let do_build = if !out_file.exists() {
         println!("# will generate new {}", out_file.display());
         true
-    } else if is_older_file(&out_file, &src_path) {
+    }
+    else if let Some(src_path) = look_updated_against(
+        &out_file, &[
+            &src_path,
+            &cargo_topdir_file("build.rs"),
+        ]) {
         println!("# out_file {} is older than src {}"
                  , out_file.display(), src_path.display());
         true
-    } else {
+    }
+    else {
         println!("# out_file {} exists and up-to-date with src {}\n# out_file={{{:?}}} src_file={{{:?}}}"
                  , out_file.display(), src_path.display()
                  , out_file.metadata().unwrap().modified()
