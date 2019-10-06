@@ -62,7 +62,7 @@ cmdList+=(
 if ((ARGC)); then
     cmdList+=("${(j/ /)${(@q-)argv}}")
 else
-    cmdList+=("cargo test")
+    cmdList+=("cargo test --all")
 fi
 
 
