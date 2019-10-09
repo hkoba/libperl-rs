@@ -5,4 +5,6 @@ fn main() {
     perl.emit_cargo_ldopts();
 
     perl.emit_features(&["useithreads"]);
+
+    perl.emit_perlapi_vers(10, 30);
 }

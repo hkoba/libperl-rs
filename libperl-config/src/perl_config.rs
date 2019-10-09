@@ -56,6 +56,33 @@ impl PerlConfig {
         process_command_output(cmd.output()?)
     }
 
+    pub fn read_one_config(&self, configs: &[&str]) -> Result<String, Error> {
+        let script = ["-wle", r#"
+    use strict;
+    use Config;
+    print ($Config{shift()} // '');
+    "#
+        ];
+        let mut cmd = self.command(&[&script[..], configs].concat());
+
+        process_command_output(cmd.output()?)
+    }
+
+    pub fn emit_perlapi_vers(&self, min: i32, max: i32) {
+        let config = self.read_one_config(&["PERL_API_VERSION"]).unwrap();
+        let config = config.trim();
+        println!("# PERL_API_VERSION={}", config);
+        let ver = i32::from_str_radix(String::from(config).trim(), 10).unwrap();
+        for v in min..=max {
+            if v % 2 == 1 {
+                continue;
+            }
+            if ver >= v {
+                println!("cargo:rustc-cfg=perlapi_ver{}", v);
+            }
+        }
+    }
+
     pub fn emit_features(&self, configs: &[&str]) -> ConfigDict {
         let dict = self.read_config(&configs).unwrap();
 
