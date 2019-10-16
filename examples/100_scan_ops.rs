@@ -26,26 +26,21 @@ fn scan_ops(mut op: *const op) {
 }
 
 #[cfg(perl_useithreads)]
-fn test() {
+fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
-    // if cfg!(perl_useithreads) {
-        scan_ops(unsafe {*perl.my_perl}.Imain_start);
-    // }
+    scan_ops(unsafe {*perl.my_perl}.Imain_start);
 }
 
 #[cfg(not(perl_useithreads))]
-fn test() {
+fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
-    // if cfg!(perl_useithreads) {
-         scan_ops(unsafe {libperl_sys::PL_main_start});
-    // }
+    scan_ops(unsafe {libperl_sys::PL_main_start});
 }
 
-
-// cargo run --example 100_list_ops -- -le 'print "FOO"'
+// cargo run --example 100_scan_ops -- -le 'print "FOO"'
 
 fn main() {
-    test();
+    my_test();
 }
