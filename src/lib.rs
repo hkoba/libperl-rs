@@ -1,6 +1,7 @@
 extern crate libperl_sys;
 
 pub mod perl;
+pub use perl::*;
 
 #[cfg(test)]
 mod tests {

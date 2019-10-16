@@ -1,4 +1,4 @@
-use libperl_rs::perl::Perl;
+use libperl_rs::Perl;
 #[allow(unused)]
 use libperl_sys;
 
