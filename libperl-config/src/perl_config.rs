@@ -8,7 +8,7 @@ type ConfigDict = HashMap<String, String>;
 
 pub struct PerlConfig {
     command: PerlCommand,
-    dict: ConfigDict,
+    pub dict: ConfigDict,
 }
 
 impl Default for PerlConfig {
@@ -31,6 +31,10 @@ impl PerlConfig {
             command: cmd,
             dict: dict,
         }
+    }
+
+    pub fn command(&self, args: &[&str]) -> Command {
+        self.command.command(args)
     }
 
     pub fn read_ccopts(&self) -> Result<Vec<String>, Error> {

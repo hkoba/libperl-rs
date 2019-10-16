@@ -18,8 +18,7 @@ mod tests {
     #[test]
     fn can_read_config() {
         let cfg = super::PerlConfig::default();
-        let dict = cfg.read_config(&[]).unwrap();
-        let perl_version = dict.get("PERL_VERSION");
+        let perl_version = cfg.dict.get("PERL_VERSION");
         assert_ne!(perl_version, None);
         if let Some(ver) = perl_version {
             let script = r#"
