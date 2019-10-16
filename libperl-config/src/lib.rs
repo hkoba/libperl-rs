@@ -1,3 +1,5 @@
+mod perl_command;
+pub use perl_command::*;
 
 mod perl_config;
 pub use perl_config::*;
