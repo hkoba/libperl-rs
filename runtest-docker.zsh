@@ -15,6 +15,7 @@ fi
 #========================================
 
 zparseopts -D -K x=o_xtrace n=o_dryrun \
+           -reuse-target-dir=o_reuse_target_dir \
            -image:=o_image -target:=o_targetDir
 
 if (($#o_xtrace)); then set -x; fi
@@ -32,8 +33,17 @@ else
 fi
 
 volOpts=()
+reuse_target_dir=0
 if (($#o_targetDir)); then
+    reuse_target_dir=0
     volOpts+=(-v ${o_targetDir[2]#=}:/app/target${SELINUX})
+elif ((! $#o_reuse_target_dir)); then
+    reuse_target_dir=0
+    dn=$topDir.target.${imageName:gs/:/__/}
+    mkdir -vp $dn
+    volOpts+=(-v $dn:/app/target${SELINUX})
+else
+    reuse_target_dir=1
 fi
 
 if ((! ARGC)); then
@@ -52,7 +62,7 @@ cmdList=(
     'cd /app'
 )
 
-if ((! $#o_targetDir)); then
+if (($reuse_target_dir)); then
     cmdList+=('cargo clean')
 fi
 
