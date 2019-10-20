@@ -73,6 +73,8 @@ fn main() {
         let bindings = bindgen::Builder::default()
 
             .rustfmt_bindings(true)
+            .derive_debug(true)
+            .impl_debug(true)
 
         // The input header we would like to generate
         // bindings for.

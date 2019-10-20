@@ -20,13 +20,13 @@ fn my_test() {
     perl.parse_env_args(env::args(), env::vars());
     
     let main_cv = get_main_cv(&perl);
-    print!("main_cv = {:#?}\n", main_cv);
+    print!("main_cv = {:?}\n", unsafe {*main_cv});
 
     let xpvcv = unsafe {(*main_cv).sv_any};
-    print!("xpvcv = {:#?}\n", xpvcv);
+    print!("xpvcv = {:?}\n", unsafe {*xpvcv});
 
     let padlist = unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist};
-    print!("padlist = {:#?}\n", padlist);
+    print!("padlist = {:?}\n", unsafe {*padlist});
 
     let padnamelist_ptr = fetch_padnamelist(padlist);
     if let Some(padnamelist) = unsafe {padnamelist_ptr.as_ref()} {

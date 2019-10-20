@@ -13,13 +13,14 @@ fn scan_ops(mut op: *const op) {
         //         c_perl::PL_maxo as usize
         //     );
         // };
-        print!("op={:#?} {}\n",
+        print!("{:#?} {}\t{:?}\n",
                op, 
                // op_name[ty]
                unsafe {
                    CStr::from_ptr(PL_op_name[ty as usize])
                }
-               .to_str().unwrap()
+               .to_str().unwrap(),
+               unsafe {*op},
         );
         op = unsafe {(*op).op_next as *const op};
     }
