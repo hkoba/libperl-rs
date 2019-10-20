@@ -46,10 +46,6 @@ else
     reuse_target_dir=1
 fi
 
-if ((! ARGC)); then
-    argv=(--all)
-fi
-
 #========================================
 
 cmdList=(
