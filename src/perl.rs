@@ -66,6 +66,15 @@ impl Perl {
             )
         }
     }
+    
+    #[cfg(all(perlapi_ver26,perl_useithreads))]
+    pub fn op_class(&self, o: *const libperl_sys::OP) -> libperl_sys::OPclass {
+        unsafe {libperl_sys::Perl_op_class(self.my_perl, o)}
+    }
+    #[cfg(all(perlapi_ver26,not(perl_useithreads)))]
+    pub fn op_class(&self, o: *const libperl_sys::OP) -> libperl_sys::OPclass {
+        unsafe {libperl_sys::Perl_op_class(o)}
+    }
 }
 
 pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {

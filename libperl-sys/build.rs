@@ -76,6 +76,8 @@ fn main() {
             .derive_debug(true)
             .impl_debug(true)
 
+            .rustified_enum("OPclass")
+
         // The input header we would like to generate
         // bindings for.
             .header(src_file_name)
