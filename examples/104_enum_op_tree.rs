@@ -8,18 +8,18 @@ use libperl_sys::OPclass;
 #[derive(Debug)]
 enum Op<'a> {
     NULL,
-    OP (&'a libperl_sys::op),
-    UNOP (&'a libperl_sys::unop),
-    BINOP (&'a libperl_sys::binop),
-    LOGOP (&'a libperl_sys::logop),
-    LISTOP (&'a libperl_sys::listop),
-    PMOP (&'a libperl_sys::pmop),
-    SVOP (&'a libperl_sys::svop),
-    PADOP (&'a libperl_sys::padop),
-    PVOP (&'a libperl_sys::pvop),
-    LOOP (&'a libperl_sys::loop_),
-    COP (&'a libperl_sys::cop),
-    METHOP (&'a libperl_sys::methop),
+    OP (libperl_sys::opcode, &'a libperl_sys::op),
+    UNOP (libperl_sys::opcode, &'a libperl_sys::unop),
+    BINOP (libperl_sys::opcode, &'a libperl_sys::binop),
+    LOGOP (libperl_sys::opcode, &'a libperl_sys::logop),
+    LISTOP (libperl_sys::opcode, &'a libperl_sys::listop),
+    PMOP (libperl_sys::opcode, &'a libperl_sys::pmop),
+    SVOP (libperl_sys::opcode, &'a libperl_sys::svop),
+    PADOP (libperl_sys::opcode, &'a libperl_sys::padop),
+    PVOP (libperl_sys::opcode, &'a libperl_sys::pvop),
+    LOOP (libperl_sys::opcode, &'a libperl_sys::loop_),
+    COP (libperl_sys::opcode, &'a libperl_sys::cop),
+    METHOP (libperl_sys::opcode, &'a libperl_sys::methop),
 }
 
 struct Walker<'a> {
@@ -41,21 +41,25 @@ impl<'a> Walker<'a> {
     #[cfg(perlapi_ver26)]
     fn op_extract(&'a self, o: *const libperl_sys::op) -> Op {
         let cls = self.perl.op_class(o);
+        let oc = unsafe {
+            let ty = (*o).op_type();
+            *(&ty as *const u32 as *const libperl_sys::opcode)
+        };
         match cls {
             OPclass::OPclass_NULL => Op::NULL,
-            OPclass::OPclass_BASEOP => Op::OP(unsafe {o.as_ref()}.unwrap()),
-            OPclass::OPclass_UNOP => Op::UNOP(unsafe {(o as *const libperl_sys::unop).as_ref()}.unwrap()),
-            OPclass::OPclass_BINOP => Op::BINOP(unsafe {(o as *const libperl_sys::binop).as_ref()}.unwrap()),
-            OPclass::OPclass_LOGOP => Op::LOGOP(unsafe {(o as *const libperl_sys::logop).as_ref()}.unwrap()),
-            OPclass::OPclass_LISTOP => Op::LISTOP(unsafe {(o as *const libperl_sys::listop).as_ref()}.unwrap()),
-            OPclass::OPclass_PMOP => Op::PMOP(unsafe {(o as *const libperl_sys::pmop).as_ref()}.unwrap()),
-            OPclass::OPclass_SVOP => Op::SVOP(unsafe {(o as *const libperl_sys::svop).as_ref()}.unwrap()),
-            OPclass::OPclass_PADOP => Op::PADOP(unsafe {(o as *const libperl_sys::padop).as_ref()}.unwrap()),
-            OPclass::OPclass_PVOP => Op::PVOP(unsafe {(o as *const libperl_sys::pvop).as_ref()}.unwrap()),
-            OPclass::OPclass_LOOP => Op::LOOP(unsafe {(o as *const libperl_sys::loop_).as_ref()}.unwrap()),
-            OPclass::OPclass_COP => Op::COP(unsafe {(o as *const libperl_sys::cop).as_ref()}.unwrap()),
-            OPclass::OPclass_METHOP => Op::METHOP(unsafe {(o as *const libperl_sys::methop).as_ref()}.unwrap()),
-            //        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(unsafe {(o as *const libperl_sys::unop_aux).as_ref()}.unwrap()),
+            OPclass::OPclass_BASEOP => Op::OP(oc, unsafe {o.as_ref()}.unwrap()),
+            OPclass::OPclass_UNOP => Op::UNOP(oc, unsafe {(o as *const libperl_sys::unop).as_ref()}.unwrap()),
+            OPclass::OPclass_BINOP => Op::BINOP(oc, unsafe {(o as *const libperl_sys::binop).as_ref()}.unwrap()),
+            OPclass::OPclass_LOGOP => Op::LOGOP(oc, unsafe {(o as *const libperl_sys::logop).as_ref()}.unwrap()),
+            OPclass::OPclass_LISTOP => Op::LISTOP(oc, unsafe {(o as *const libperl_sys::listop).as_ref()}.unwrap()),
+            OPclass::OPclass_PMOP => Op::PMOP(oc, unsafe {(o as *const libperl_sys::pmop).as_ref()}.unwrap()),
+            OPclass::OPclass_SVOP => Op::SVOP(oc, unsafe {(o as *const libperl_sys::svop).as_ref()}.unwrap()),
+            OPclass::OPclass_PADOP => Op::PADOP(oc, unsafe {(o as *const libperl_sys::padop).as_ref()}.unwrap()),
+            OPclass::OPclass_PVOP => Op::PVOP(oc, unsafe {(o as *const libperl_sys::pvop).as_ref()}.unwrap()),
+            OPclass::OPclass_LOOP => Op::LOOP(oc, unsafe {(o as *const libperl_sys::loop_).as_ref()}.unwrap()),
+            OPclass::OPclass_COP => Op::COP(oc, unsafe {(o as *const libperl_sys::cop).as_ref()}.unwrap()),
+            OPclass::OPclass_METHOP => Op::METHOP(oc, unsafe {(o as *const libperl_sys::methop).as_ref()}.unwrap()),
+            //        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc, unsafe {(o as *const libperl_sys::unop_aux).as_ref()}.unwrap()),
             _ => panic!("Unknown op type {:#?}", o),
         }
     }

@@ -76,7 +76,7 @@ fn main() {
             .derive_debug(true)
             .impl_debug(true)
 
-            .rustified_enum("OPclass")
+            .rustified_enum("OPclass|opcode")
 
         // The input header we would like to generate
         // bindings for.
