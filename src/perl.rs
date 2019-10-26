@@ -21,6 +21,47 @@ impl Drop for Perl {
     }
 }
 
+extern "C" {
+    #[cfg(perl_useithreads)]
+    fn boot_DynaLoader(perl: *mut PerlInterpreter, cv: *mut CV);
+    #[cfg(not(perl_useithreads))]
+    fn boot_DynaLoader(cv: *mut CV);
+}
+
+#[allow(non_camel_case_types)]
+#[cfg(perl_useithreads)]
+type xsinit_type = extern "C" fn(*mut PerlInterpreter) -> ();
+
+#[allow(non_camel_case_types)]
+#[cfg(not(perl_useithreads))]
+type xsinit_type = extern "C" fn() -> ();
+
+#[allow(non_snake_case)]
+#[cfg(perl_useithreads)]
+pub fn newXS(perl: *mut PerlInterpreter, name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
+    let name = CString::new(name).unwrap();
+    let filename = CString::new(filename).unwrap();
+    unsafe {Perl_newXS(perl, name.as_ptr(), xsub, filename.as_ptr())}
+}
+
+#[allow(non_snake_case)]
+#[cfg(not(perl_useithreads))]
+pub fn newXS(name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
+    let name = CString::new(name).unwrap();
+    let filename = CString::new(filename).unwrap();
+    unsafe {Perl_newXS(name.as_ptr(), xsub, filename.as_ptr())}
+}
+
+#[cfg(perl_useithreads)]
+pub extern "C" fn xs_init(perl: *mut PerlInterpreter) {
+    newXS(perl, "DynaLoader::boot_DynaLoader", Some(boot_DynaLoader), file!());
+}
+
+#[cfg(not(perl_useithreads))]
+pub extern "C" fn xs_init() {
+    newXS("DynaLoader::boot_DynaLoader", Some(boot_DynaLoader), file!());
+}
+
 impl Perl {
 
     pub fn new() -> Perl {
@@ -34,6 +75,8 @@ impl Perl {
         }
     }
     
+
+
     pub fn parse(&mut self, args: &[&str], envp: &[&str]) -> i32 {
         self.args = args.iter().map(|&arg| CString::new(arg).unwrap())
             .collect::<Vec<CString>>();
@@ -57,7 +100,7 @@ impl Perl {
         unsafe {
             perl_parse(
                 self.my_perl,
-                None,
+                Some(xs_init as xsinit_type),
                 self.args.len() as c_int,
                 make_argv_from_vec(&self.args)
                     .as_ptr() as *mut *mut c_char,
