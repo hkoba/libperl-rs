@@ -17,6 +17,7 @@ links = "perl"
 
 [package.metadata.release]
 disable-tag = true
+disable-push = true
 
 [badges]
 travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }

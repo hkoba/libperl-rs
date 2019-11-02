@@ -16,6 +16,7 @@ license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
 
 [package.metadata.release]
 disable-tag = true
+disable-push = true
 
 [dependencies]
 regex = "1"
