@@ -15,6 +15,9 @@ links = "perl"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.release]
+disable-tag = true
+
 [badges]
 travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
 
