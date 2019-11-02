@@ -29,4 +29,4 @@ libperl-sys = { "path" = "./libperl-sys", version = "0.1"}
 [build-dependencies]
 regex = "1"
 
-libperl-config = {"path" = "./libperl-config", version = "0.1"}
+libperl-config = {"path" = "./libperl-config", version = "^0.2"}
