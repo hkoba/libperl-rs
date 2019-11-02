@@ -6,6 +6,14 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+description = "Extract perl's build configs from Config.pm and others"
+
+repository = "https://github.com/hkoba/libperl-rs.git"
+
+keywords = ["perl"]
+
+license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
+
 [package.metadata.release]
 disable-tag = true
 
