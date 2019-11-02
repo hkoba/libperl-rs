@@ -24,7 +24,7 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 
-libperl-sys = { "path" = "./libperl-sys", version = "0.1"}
+libperl-sys = { "path" = "./libperl-sys", version = "^0.2"}
 
 [build-dependencies]
 regex = "1"
