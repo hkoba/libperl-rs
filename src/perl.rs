@@ -111,6 +111,16 @@ impl Perl {
     }
     
     #[cfg(perl_useithreads)]
+    pub fn get_main_root(&self) -> *const op {
+        unsafe {*self.my_perl}.Imain_root
+    }
+
+    #[cfg(not(perl_useithreads))]
+    fn get_main_root(&self) -> *const op {
+        unsafe {libperl_sys::PL_main_root}
+    }
+
+    #[cfg(perl_useithreads)]
     pub fn get_main_cv(&self) -> *const cv {
         unsafe {*self.my_perl}.Imain_cv
     }
