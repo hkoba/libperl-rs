@@ -1,7 +1,7 @@
 use super::libperl_sys::*;
 
 use std::ptr;
-use std::ffi::{CString};
+use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
 use std::env;
 
