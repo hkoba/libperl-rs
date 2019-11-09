@@ -4,6 +4,24 @@ use std::os::raw::c_char;
 use std::ffi::CStr;
 use libperl_sys::*;
 
+pub fn cv_padnamelist<'a>(cv: *const CV) -> Option<&'a PADNAMELIST> {
+    let xpvcv = unsafe {(*cv).sv_any};
+    // print!("xpvcv = {:?}\n", unsafe {*xpvcv});
+
+    let padlist = unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist};
+    // print!("padlist = {:?}\n", unsafe {*padlist});
+
+    let padnamelist_ptr = fetch_padnamelist(padlist);
+    
+    unsafe {padnamelist_ptr.as_ref()}
+}
+
+pub fn padnamelist_nth<'a>(pn: &padnamelist, ix: usize) -> Option<&'a padname> {
+    unsafe {
+        (*(pn.xpadnl_alloc.add(ix))).as_ref()
+    }
+}
+
 #[cfg(perlapi_ver24)]
 pub fn fetch_padnamelist(padlist: *const PADLIST) -> *const PADNAMELIST {
     unsafe {

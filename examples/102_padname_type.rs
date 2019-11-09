@@ -1,5 +1,7 @@
 use std::env;
 
+// cargo run --example 102_padname_type -- -le 'my main $x; my $y'
+
 use libperl_rs::Perl;
 
 mod eg;
@@ -16,21 +18,13 @@ fn my_test() {
     perl.parse_env_args(env::args(), env::vars());
     
     let main_cv = perl.get_main_cv();
-    print!("main_cv = {:?}\n", unsafe {*main_cv});
+    // print!("main_cv = {:?}\n", unsafe {*main_cv});
 
-    let xpvcv = unsafe {(*main_cv).sv_any};
-    print!("xpvcv = {:?}\n", unsafe {*xpvcv});
-
-    let padlist = unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist};
-    print!("padlist = {:?}\n", unsafe {*padlist});
-
-    let padnamelist_ptr = eg::pad0::fetch_padnamelist(padlist);
-    if let Some(padnamelist) = unsafe {padnamelist_ptr.as_ref()} {
+    if let Some(padnamelist) = eg::pad0::cv_padnamelist(main_cv) {
         println!("padnamelist = {:?}", padnamelist);
         let mut ix: usize = 0;
         while ix < (padnamelist.xpadnl_fill as usize) {
-            let padname = unsafe {(*(padnamelist.xpadnl_alloc.add(ix)))
-                                  .as_ref()}.unwrap();
+            let padname = eg::pad0::padnamelist_nth(padnamelist, ix).unwrap();
             println!("padname {} = var{{name: {:?}}}, type: {:?}"
                      , ix
                      , eg::pad0::perl__PadnamePV(padname)
