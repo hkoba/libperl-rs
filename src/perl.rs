@@ -110,6 +110,16 @@ impl Perl {
         }
     }
     
+    #[cfg(perl_useithreads)]
+    pub fn get_main_cv(&self) -> *const cv {
+        unsafe {*self.my_perl}.Imain_cv
+    }
+
+    #[cfg(not(perl_useithreads))]
+    pub fn get_main_cv(&self) -> *const cv {
+        unsafe {libperl_sys::PL_main_cv}
+    }
+
     #[cfg(all(perlapi_ver26,perl_useithreads))]
     pub fn op_class(&self, o: *const OP) -> OPclass {
         unsafe {Perl_op_class(self.my_perl, o)}

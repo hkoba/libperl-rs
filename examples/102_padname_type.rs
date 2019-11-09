@@ -19,7 +19,7 @@ fn my_test() {
 
     perl.parse_env_args(env::args(), env::vars());
     
-    let main_cv = get_main_cv(&perl);
+    let main_cv = perl.get_main_cv();
     print!("main_cv = {:?}\n", unsafe {*main_cv});
 
     let xpvcv = unsafe {(*main_cv).sv_any};
