@@ -116,7 +116,7 @@ impl Perl {
     }
 
     #[cfg(not(perl_useithreads))]
-    fn get_main_root(&self) -> *const op {
+    pub fn get_main_root(&self) -> *const op {
         unsafe {libperl_sys::PL_main_root}
     }
 
