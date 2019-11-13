@@ -2,22 +2,7 @@ use libperl_rs::Perl;
 
 use libperl_sys::*;
 
-#[derive(Debug)]
-pub enum Op<'a> {
-    NULL,
-    OP (opcode, &'a op),
-    UNOP (opcode, &'a unop),
-    BINOP (opcode, &'a binop),
-    LOGOP (opcode, &'a logop),
-    LISTOP (opcode, &'a listop),
-    PMOP (opcode, &'a pmop),
-    SVOP (opcode, &'a svop),
-    PADOP (opcode, &'a padop),
-    PVOP (opcode, &'a pvop),
-    LOOP (opcode, &'a loop_),
-    COP (opcode, &'a cop),
-    METHOP (opcode, &'a methop),
-}
+use super::op0::*;
 
 pub struct Walker<'a> {
     pub perl: &'a Perl,
@@ -25,18 +10,9 @@ pub struct Walker<'a> {
 
 impl<'a> Walker<'a> {
 
-    #[cfg(perl_useithreads)]
-    pub fn main_root(&'a self) -> *const op {
-        unsafe {*self.perl.my_perl}.Imain_root
-    }
-
-    #[cfg(not(perl_useithreads))]
-    pub fn main_root(&'a self) -> *const op {
-        unsafe {PL_main_root}
-    }
 
     #[cfg(perlapi_ver26)]
-    fn op_extract(&'a self, o: *const op) -> Op {
+    pub fn op_extract(&'a self, o: *const op) -> Op {
         let cls = self.perl.op_class(o);
         let oc = unsafe {
             let ty = (*o).op_type();
@@ -61,53 +37,14 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn op_first(o: *const op) -> *const op {
-        if o.is_null() || (unsafe {*o}.op_flags & OPf_KIDS as u8) == 0 {
-            std::ptr::null()
-        } else {
-            let uo = o as *const unop;
-            unsafe {*uo}.op_first as *const op
-        }
-    }
-
-    #[cfg(perlapi_ver26)]
-    fn op_sibling(op: *const unop) -> *const op {
-        // PERL_OP_PARENT is on since 5.26
-        if let Some(op) = unsafe {op.as_ref()} {
-            if op.op_moresib() == 1 as u32 {
-                op.op_sibparent
-            } else {
-                std::ptr::null()
-            }
-        } else {
-            std::ptr::null()
-        }
-    }
-
-    #[cfg(not(perlapi_ver26))]
-    fn op_sibling(op: *const unop) -> *const op {
-        if let Some(op) = unsafe {op.as_ref()} {
-            op.op_sibling
-        } else {
-            std::ptr::null()
-        }
-    }
-
-    pub fn op_name(&'a self, o: *const op) -> String {
-        let ty = unsafe {*o}.op_type();
-        unsafe {
-            std::ffi::CStr::from_ptr(PL_op_name[ty as usize])
-        }.to_str().unwrap().to_string()
-    }
-
     #[cfg(perlapi_ver26)]
     pub fn walk(&'a self, o: *const op, level: isize) {
-        let mut kid = Self::op_first(o);
+        let mut kid = op_first(o);
         while !kid.is_null() {
             self.walk(kid, level+1);
-            kid = Self::op_sibling(kid as *const unop);
+            kid = op_sibling(kid as *const unop);
         }
         print!("{}", "  ".repeat(level as usize));
-        println!("{:?} {:?}", self.op_name(o), self.op_extract(o));
+        println!("{:?} {:?}", op_name(o), self.op_extract(o));
     }
 }

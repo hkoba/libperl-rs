@@ -11,9 +11,7 @@ fn my_test() {
     
     let walker = eg::op_walker1::Walker {perl: &perl};
 
-    let main_root = walker.main_root();
-    
-    walker.walk(main_root, 0);
+    walker.walk(perl.get_main_root(), 0);
 }
 
 #[cfg(not(perlapi_ver26))]
