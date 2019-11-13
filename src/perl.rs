@@ -111,6 +111,26 @@ impl Perl {
     }
     
     #[cfg(perl_useithreads)]
+    pub fn get_defstash(&self) -> *mut HV {
+        unsafe {*self.my_perl}.Idefstash
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn get_defstash(&self) -> *mut HV {
+        unsafe {libperl_sys::PL_defstash}
+    }
+
+    #[cfg(perl_useithreads)]
+    pub fn gv_stashpv(&self, name: &str, flags: i32) -> *mut HV {
+        let name = CString::new(name).unwrap();
+        unsafe {Perl_gv_stashpv(self.my_perl, name.as_ptr(), flags)}
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn gv_stashpv(&self, name: &str, flags: i32) -> *mut HV {
+        let name = CString::new(name).unwrap();
+        unsafe {Perl_gv_stashpv(name.as_ptr(), flags)}
+    }
+
+    #[cfg(perl_useithreads)]
     pub fn get_main_root(&self) -> *const op {
         unsafe {*self.my_perl}.Imain_root
     }
