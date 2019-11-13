@@ -111,6 +111,54 @@ impl Perl {
     }
     
     #[cfg(perl_useithreads)]
+    pub fn hv_iterinit(&self, hv: *mut HV) -> i32 {
+        unsafe {Perl_hv_iterinit(self.my_perl, hv)}
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn hv_iterinit(&self, hv: *mut HV) -> i32 {
+        unsafe {Perl_hv_iterinit(hv)}
+    }
+    
+    #[cfg(perl_useithreads)]
+    pub fn hv_iternext(&self, hv: *mut HV) -> *mut HE {
+        unsafe {libperl_sys::Perl_hv_iternext_flags(self.my_perl, hv, 0)}
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn hv_iternext(&self, hv: *mut HV) -> *mut HE {
+        unsafe {libperl_sys::Perl_hv_iternext_flags(hv, 0)}
+    }
+    
+    pub fn hv_iterkey(&self, he: *mut HE) -> String {
+        let (name, nlen) = self._hv_iterkey(he);
+        let slice = unsafe {std::slice::from_raw_parts(name, nlen)};
+        String::from_utf8(slice.to_vec()).unwrap()
+    }
+
+    #[cfg(perl_useithreads)]
+    pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
+        let mut nlen: i32 = 0;
+        let name = unsafe {libperl_sys::Perl_hv_iterkey(self.my_perl, he, &mut nlen) as *const u8};
+        (name, nlen as usize)
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
+        let mut nlen: i32 = 0;
+        let name = unsafe {libperl_sys::Perl_hv_iterkey(he, &mut nlen) as *const u8};
+        (name, nlen as usize)
+    }
+ 
+    #[cfg(perl_useithreads)]
+    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> Option<&'a SV> {
+        let value = unsafe {libperl_sys::Perl_hv_iterval(self.my_perl, hv, he)};
+        unsafe {value.as_ref()}
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> Option<&'a SV> {
+        let value = unsafe {libperl_sys::Perl_hv_iterval(hv, he)};
+        unsafe {value.as_ref()}
+    }
+
+    #[cfg(perl_useithreads)]
     pub fn get_defstash(&self) -> *mut HV {
         unsafe {*self.my_perl}.Idefstash
     }
