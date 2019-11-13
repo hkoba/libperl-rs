@@ -44,6 +44,28 @@ pub fn op_extract(perl: &Perl, o: *const op) -> Op {
     }
 }
     
+pub fn next_iter(op: *const op) -> OpNextIter {
+    OpNextIter {op}
+}
+
+pub struct OpNextIter {
+    op: *const op,
+}
+
+impl Iterator for OpNextIter {
+    type Item = *const op;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        let op = self.op;
+        if op.is_null() {
+            None
+        } else {
+            self.op = unsafe {(*op).op_next as *const op};
+            Some(op)
+        }
+    }
+}
+
 pub fn op_name(o: *const op) -> String {
     let ty = unsafe {*o}.op_type();
     unsafe {

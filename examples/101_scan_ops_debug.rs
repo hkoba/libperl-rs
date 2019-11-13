@@ -3,10 +3,12 @@ use libperl_sys::{op};
 
 use std::env;
 
-fn scan_ops(mut op: *const op) {
-    while !op.is_null() {
-        print!("{}\n", unsafe {*op});
-        op = unsafe {(*op).op_next as *const op};
+mod eg;
+
+fn scan_ops(op: *const op) {
+
+    for op in eg::op0::next_iter(op) {
+        print!("{:?}\n", unsafe {*op});
     }
 }
 
