@@ -208,6 +208,11 @@ impl Perl {
     }
 }
 
+pub fn get_cvstash(cv: *const CV) -> *mut HV {
+    let xpvcv = unsafe {*cv}.sv_any;
+    unsafe {*xpvcv}.xcv_stash
+}
+
 pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {
     args.iter().map(|arg| arg.as_ptr() as *mut c_char)
         .collect::<Vec<*mut c_char>>()
