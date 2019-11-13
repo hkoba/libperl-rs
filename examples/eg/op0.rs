@@ -73,6 +73,28 @@ pub fn op_name(o: *const op) -> String {
     }.to_str().unwrap().to_string()
 }
 
+pub fn sibling_iter(op: *const op) -> OpSiblingIter {
+    OpSiblingIter {op: op_first(op)}
+}
+
+pub struct OpSiblingIter {
+    op: *const op,
+}
+
+impl Iterator for OpSiblingIter {
+    type Item = *const op;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        let op = self.op;
+        if op.is_null() {
+            None
+        } else {
+            self.op = op_sibling(op as *const unop);
+            Some(op)
+        }
+    }
+}
+
 #[cfg(perlapi_ver26)]
 pub fn op_sibling(op: *const unop) -> *const op {
     // PERL_OP_PARENT is on since 5.26
