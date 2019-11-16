@@ -3,7 +3,9 @@ use std::env;
 use libperl_rs::*;
 
 mod eg;
+use eg::op0::*;
 
+use libperl_sys::op;
 use libperl_sys::svtype;
 
 #[allow(non_snake_case)]
@@ -33,6 +35,19 @@ fn CvSTART(cv: *const libperl_sys::cv) -> *const libperl_sys::OP {
     unsafe {(*xpvcv).xcv_start_u.xcv_start}
 }
 
+#[allow(non_snake_case)]
+fn CvROOT(cv: *const libperl_sys::cv) -> *const libperl_sys::OP {
+    assert_eq!(SvTYPE(cv as *const libperl_sys::sv), svtype::SVt_PVCV);
+    let xpvcv = unsafe {(*cv).sv_any as *const libperl_sys::xpvcv};
+    unsafe {(*xpvcv).xcv_root_u.xcv_root}
+}
+
+#[allow(non_snake_case)]
+fn CvFILE(cv: *const libperl_sys::cv) -> String {
+    assert_eq!(SvTYPE(cv as *const libperl_sys::sv), svtype::SVt_PVCV);
+    let xpvcv = unsafe {(*cv).sv_any as *const libperl_sys::xpvcv};
+    unsafe {std::ffi::CStr::from_ptr((*xpvcv).xcv_file).to_string_lossy().into_owned()}
+}
 enum Sv {
     SCALAR(*const libperl_sys::sv),
     ARRAY(*const libperl_sys::av),
@@ -49,12 +64,29 @@ fn sv_extract(sv: *const libperl_sys::sv) -> Sv {
             svtype::SVt_PVHV => Sv::HASH(sv as *const libperl_sys::hv),
             svtype::SVt_PVCV => Sv::CODE(sv as *const libperl_sys::cv),
             _ => {
-                panic!("really?")
+                panic!("Not yet implemented")
             }
         }
     }
 }
 
+#[cfg(perlapi_ver26)]
+pub struct Walker<'a> {
+    pub perl: &'a Perl,
+}
+
+#[cfg(perlapi_ver26)]
+impl<'a> Walker<'a> {
+    pub fn walk(&'a self, o: *const op, level: isize) {
+        for kid in sibling_iter(o) {
+            self.walk(kid, level+1);
+        }
+        print!("{}", "  ".repeat(level as usize));
+        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, o));
+    }
+}
+
+#[cfg(perlapi_ver26)]
 fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
@@ -65,23 +97,22 @@ fn my_test() {
     
     assert_eq!(perl.gv_stashpv("main", 0), stash);
     
+    let walker = Walker {perl: &perl};
+
     for (name, gv) in eg::hv_iter0::HvIter::new(&perl, stash) {
 
         if let Some(sv) = SvRV(gv) {
-            match sv_extract(sv) {
-                Sv::CODE(cv) => {
-                    println!("sub {:?}", name);
-                    for op in eg::op0::next_iter(CvSTART(cv)) {
-                        print!("{:?}\n", eg::op0::op_extract(&perl, op));
-                    }
-                    println!("");
-                }
-                _ => {}
+            if let Sv::CODE(cv) = sv_extract(sv) {
+                println!("sub {:?} file {}", name, CvFILE(cv));
+                walker.walk(CvROOT(cv), 0);
+                println!("");
             }
-        } else {
-            
         }
     }
+}
+
+#[cfg(not(perlapi_ver26))]
+fn my_test() {
 }
 
 fn main() {
