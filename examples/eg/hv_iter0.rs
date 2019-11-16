@@ -15,7 +15,7 @@ impl<'a> HvIter<'a> {
 }
 
 impl<'a> Iterator for HvIter<'a> {
-    type Item = (String, Option<&'a SV>);
+    type Item = (String, *mut SV);
     
     fn next(&mut self) -> Option<Self::Item> {
         self.he = self.perl.hv_iternext(self.hv);

@@ -148,14 +148,12 @@ impl Perl {
     }
  
     #[cfg(perl_useithreads)]
-    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> Option<&'a SV> {
-        let value = unsafe {libperl_sys::Perl_hv_iterval(self.my_perl, hv, he)};
-        unsafe {value.as_ref()}
+    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
+        unsafe {libperl_sys::Perl_hv_iterval(self.my_perl, hv, he)}
     }
     #[cfg(not(perl_useithreads))]
-    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> Option<&'a SV> {
-        let value = unsafe {libperl_sys::Perl_hv_iterval(hv, he)};
-        unsafe {value.as_ref()}
+    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
+        unsafe {libperl_sys::Perl_hv_iterval(hv, he)}
     }
 
     #[cfg(perl_useithreads)]
