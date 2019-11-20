@@ -48,17 +48,45 @@ fn CvFILE(cv: *const libperl_sys::cv) -> String {
     let xpvcv = unsafe {(*cv).sv_any as *const libperl_sys::xpvcv};
     unsafe {std::ffi::CStr::from_ptr((*xpvcv).xcv_file).to_string_lossy().into_owned()}
 }
+
+#[allow(non_snake_case)]
+fn GvLINE(gv: *const libperl_sys::gv) -> u32 {
+    let gp = unsafe {(*gv).sv_u.svu_gp};
+    assert_ne!(gp, std::ptr::null_mut());
+    unsafe {(*gp).gp_line()}
+}
+
+#[allow(non_snake_case)]
+fn GvFILE(gv: *const libperl_sys::gv) -> Option<String> {
+    let gp = unsafe {(*gv).sv_u.svu_gp};
+    assert_ne!(gp, std::ptr::null_mut());
+    let hek = unsafe {(*gp).gp_file_hek};
+    if ! hek.is_null() {
+        let cs = unsafe {&(*hek).hek_key[0]};
+        Some(unsafe {std::ffi::CStr::from_ptr(cs).to_string_lossy().into_owned()})
+    } else {
+        None
+    }
+}
+
+
+#[derive(Debug)]
 enum Sv {
     SCALAR(*const libperl_sys::sv),
+    GLOB(*const libperl_sys::gv),
     ARRAY(*const libperl_sys::av),
     HASH(*const libperl_sys::hv),
     CODE(*const libperl_sys::cv),
 }
 
 fn sv_extract(sv: *const libperl_sys::sv) -> Sv {
-    if svtype_raw(sv) < svtype::SVt_PVAV as u32 {
+    if svtype_raw(sv) == svtype::SVt_PVGV as u32 {
+        Sv::GLOB(sv as *const libperl_sys::gv)
+    }
+    else if svtype_raw(sv) < svtype::SVt_PVAV as u32 {
         Sv::SCALAR(sv)
-    } else {
+    }
+    else {
         match SvTYPE(sv) {
             svtype::SVt_PVAV => Sv::ARRAY(sv as *const libperl_sys::av),
             svtype::SVt_PVHV => Sv::HASH(sv as *const libperl_sys::hv),
@@ -99,15 +127,23 @@ fn my_test() {
     
     let walker = Walker {perl: &perl};
 
-    for (name, gv) in eg::hv_iter0::HvIter::new(&perl, stash) {
+    for (name, item) in eg::hv_iter0::HvIter::new(&perl, stash) {
 
-        if let Some(sv) = SvRV(gv) {
+        // ref $main::{foo} eq 'CODE'
+        if let Some(sv) = SvRV(item) {
             if let Sv::CODE(cv) = sv_extract(sv) {
-                println!("sub {:?} file {}", name, CvFILE(cv));
-                walker.walk(CvROOT(cv), 0);
-                println!("");
+                // println!("sub {:?} file {}", name, CvFILE(cv));
+                // walker.walk(CvROOT(cv), 0);
+                // println!("");
             }
         }
+        else if let Sv::GLOB(gv) = sv_extract(item) {
+            let line = GvLINE(gv);
+            if line >= 1 {
+                println!("name = {:?} glob file = {:?} line = {:?}", name, GvFILE(gv), line);
+            }
+        }
+        
     }
 }
 
