@@ -3,6 +3,16 @@ use libperl_sys::svtype;
 use super::sv0::*;
 
 #[allow(non_snake_case)]
+pub fn GvCV(gv: *const libperl_sys::gv) -> *const libperl_sys::cv {
+    let gp = GvGP(gv);
+    if gp.is_null() {
+        std::ptr::null()
+    } else {
+        unsafe {(*gp).gp_cv}
+    }
+}
+
+#[allow(non_snake_case)]
 pub fn GvGP(gv: *const libperl_sys::gv) -> *const libperl_sys::gp {
     match SvTYPE(gv as *const libperl_sys::sv) {
         svtype::SVt_PVGV | svtype::SVt_PVLV if (unsafe {(*gv).sv_flags} & (libperl_sys::SVp_POK as u32|libperl_sys::SVpgv_GP as u32)) == libperl_sys::SVpgv_GP

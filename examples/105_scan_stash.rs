@@ -53,8 +53,7 @@ fn my_test() {
         }
         // ref (\$main::{foo}) eq 'GLOB'
         else if let Sv::GLOB(gv) = sv_extract(item) {
-            let gp = GvGP(gv);
-            let cv = unsafe {(*gp).gp_cv};
+            let cv = GvCV(gv);
             if let Some(file) = CvFILE(cv) {
                 if file == "-e" {
                     emitter(&name, cv);
