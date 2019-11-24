@@ -1,3 +1,5 @@
+pub use libperl_sys::op;
+
 use libperl_sys::*;
 use libperl_rs::Perl;
 
