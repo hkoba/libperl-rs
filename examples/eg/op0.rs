@@ -3,25 +3,28 @@ pub use libperl_sys::op;
 use libperl_sys::*;
 use libperl_rs::Perl;
 
+use super::sv0::{Sv, sv_extract};
+use super::pad0::*;
+
 #[derive(Debug)]
-pub enum Op<'a> {
+pub enum Op <'a> {
     NULL,
-    OP (opcode, &'a op),
-    UNOP (opcode, &'a unop),
-    BINOP (opcode, &'a binop),
-    LOGOP (opcode, &'a logop),
-    LISTOP (opcode, &'a listop),
-    PMOP (opcode, &'a pmop),
-    SVOP (opcode, &'a svop),
-    PADOP (opcode, &'a padop),
-    PVOP (opcode, &'a pvop),
-    LOOP (opcode, &'a loop_),
-    COP (opcode, &'a cop),
-    METHOP (opcode, &'a methop),
+    OP (opcode/*, &'a op*/),
+    UNOP (opcode/*, &'a unop*/),
+    BINOP (opcode/*, &'a binop*/),
+    LOGOP (opcode/*, &'a logop*/),
+    LISTOP (opcode/*, &'a listop*/),
+    PMOP (opcode/*, &'a pmop*/),
+    SVOP (opcode, Sv<'a>),
+    PADOP (opcode, Sv<'a>),
+    PVOP (opcode/*, &'a pvop*/),
+    LOOP (opcode/*, &'a loop_*/),
+    COP (opcode/*, &'a cop*/),
+    METHOP (opcode/*, &'a methop*/),
 }
 
 #[cfg(perlapi_ver26)]
-pub fn op_extract(perl: &Perl, o: *const op) -> Op {
+pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
     let cls = perl.op_class(o);
     let oc = unsafe {
         let ty = (*o).op_type();
@@ -29,18 +32,30 @@ pub fn op_extract(perl: &Perl, o: *const op) -> Op {
     };
     match cls {
         OPclass::OPclass_NULL => Op::NULL,
-        OPclass::OPclass_BASEOP => Op::OP(oc, unsafe {o.as_ref()}.unwrap()),
-        OPclass::OPclass_UNOP => Op::UNOP(oc, unsafe {(o as *const unop).as_ref()}.unwrap()),
-        OPclass::OPclass_BINOP => Op::BINOP(oc, unsafe {(o as *const binop).as_ref()}.unwrap()),
-        OPclass::OPclass_LOGOP => Op::LOGOP(oc, unsafe {(o as *const logop).as_ref()}.unwrap()),
-        OPclass::OPclass_LISTOP => Op::LISTOP(oc, unsafe {(o as *const listop).as_ref()}.unwrap()),
-        OPclass::OPclass_PMOP => Op::PMOP(oc, unsafe {(o as *const pmop).as_ref()}.unwrap()),
-        OPclass::OPclass_SVOP => Op::SVOP(oc, unsafe {(o as *const svop).as_ref()}.unwrap()),
-        OPclass::OPclass_PADOP => Op::PADOP(oc, unsafe {(o as *const padop).as_ref()}.unwrap()),
-        OPclass::OPclass_PVOP => Op::PVOP(oc, unsafe {(o as *const pvop).as_ref()}.unwrap()),
-        OPclass::OPclass_LOOP => Op::LOOP(oc, unsafe {(o as *const loop_).as_ref()}.unwrap()),
-        OPclass::OPclass_COP => Op::COP(oc, unsafe {(o as *const cop).as_ref()}.unwrap()),
-        OPclass::OPclass_METHOP => Op::METHOP(oc, unsafe {(o as *const methop).as_ref()}.unwrap()),
+        OPclass::OPclass_BASEOP => Op::OP(oc/*, unsafe {o.as_ref()}.unwrap()*/),
+        OPclass::OPclass_UNOP => Op::UNOP(oc/*, unsafe {(o as *const unop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_BINOP => Op::BINOP(oc/*, unsafe {(o as *const binop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_LOGOP => Op::LOGOP(oc/*, unsafe {(o as *const logop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_LISTOP => Op::LISTOP(oc/*, unsafe {(o as *const listop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_PMOP => Op::PMOP(oc/*, unsafe {(o as *const pmop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_SVOP => {
+            let op = unsafe {(o as *const svop).as_ref()}.unwrap();
+            let sv = if !op.op_sv.is_null() {
+                op.op_sv
+            } else {
+                PAD_BASE_SV(CvPADLIST(cv), op.op_targ)
+            };
+            Op::SVOP(oc, sv_extract(sv))
+        },
+        OPclass::OPclass_PADOP => {
+            let op = unsafe {(o as *const padop).as_ref()}.unwrap();
+            let sv = PAD_BASE_SV(CvPADLIST(cv), op.op_padix);
+            Op::PADOP(oc, sv_extract(sv))
+        },
+        OPclass::OPclass_PVOP => Op::PVOP(oc/*, unsafe {(o as *const pvop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_LOOP => Op::LOOP(oc/*, unsafe {(o as *const loop_).as_ref()}.unwrap()*/),
+        OPclass::OPclass_COP => Op::COP(oc/*, unsafe {(o as *const cop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_METHOP => Op::METHOP(oc/*, unsafe {(o as *const methop).as_ref()}.unwrap()*/),
         //        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc, unsafe {(o as *const unop_aux).as_ref()}.unwrap()),
         _ => panic!("Unknown op type {:#?}", o),
     }

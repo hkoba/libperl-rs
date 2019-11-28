@@ -11,6 +11,7 @@ use eg::gv0::*;
 #[cfg(perlapi_ver26)]
 pub struct Walker<'a> {
     pub perl: &'a Perl,
+    pub cv: *const libperl_sys::cv,
 }
 
 #[cfg(perlapi_ver26)]
@@ -20,7 +21,7 @@ impl<'a> Walker<'a> {
             self.walk(kid, level+1);
         }
         print!("{}", "  ".repeat(level as usize));
-        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, o));
+        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, self.cv, o));
     }
 }
 
@@ -35,11 +36,10 @@ fn my_test() {
     
     assert_eq!(perl.gv_stashpv("main", 0), stash);
     
-    let walker = Walker {perl: &perl};
-
     println!("main file = {:?}", CvFILE(perl.get_main_cv()));
 
     let emitter = |name: &String, cv: *const libperl_sys::cv| {
+        let walker = Walker {perl: &perl, cv};
         println!("sub {:?} file {:?}", name, CvFILE(cv));
         walker.walk(CvROOT(cv), 0);
         println!("");
@@ -52,7 +52,7 @@ fn my_test() {
             emitter(&name, cv)
         }
         // ref (\$main::{foo}) eq 'GLOB'
-        else if let Sv::GLOB(gv) = sv_extract(item) {
+        else if let Sv::GLOB(gv, _, _) = sv_extract(item) {
             let cv = GvCV(gv);
             if let Some(file) = CvFILE(cv) {
                 if file == "-e" {

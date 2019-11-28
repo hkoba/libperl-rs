@@ -1,19 +1,32 @@
 pub use libperl_sys::svtype;
 
+use super::gv0::*;
+
 #[derive(Debug)]
-pub enum Sv {
+pub enum Sv<'a> {
     SCALAR(*const libperl_sys::sv),
-    GLOB(*const libperl_sys::gv),
+    GLOB(*const libperl_sys::gv, &'a libperl_sys::xpvgv, Option<&'a libperl_sys::gp>),
     ARRAY(*const libperl_sys::av),
     HASH(*const libperl_sys::hv),
     CODE(*const libperl_sys::cv),
+    NIMPL(svtype, *const libperl_sys::sv),
 }
 
-pub fn sv_extract(sv: *const libperl_sys::sv) -> Sv {
+pub fn sv_extract<'a>(sv: *const libperl_sys::sv) -> Sv<'a> {
     if svtype_raw(sv) == svtype::SVt_PVGV as u32 {
-        Sv::GLOB(sv as *const libperl_sys::gv)
+        let gv = sv as *const libperl_sys::gv;
+        Sv::GLOB(gv
+                 , unsafe {(*gv).sv_any.as_ref().unwrap()}
+                 , unsafe {GvGP(gv).as_ref()})
     }
     else if svtype_raw(sv) < svtype::SVt_PVAV as u32 {
+        // let flags = unsafe {(*sv).sv_flags};
+        // let iv = if (flags & SVp_IOK) != 0 {
+        //     let xpviv = (*sv).sv_any;
+        //     Some(unsafe {(*xpviv).xiv_iv})
+        // } else {
+        //     None
+        // };
         Sv::SCALAR(sv)
     }
     else {
@@ -21,8 +34,8 @@ pub fn sv_extract(sv: *const libperl_sys::sv) -> Sv {
             svtype::SVt_PVAV => Sv::ARRAY(sv as *const libperl_sys::av),
             svtype::SVt_PVHV => Sv::HASH(sv as *const libperl_sys::hv),
             svtype::SVt_PVCV => Sv::CODE(sv as *const libperl_sys::cv),
-            _ => {
-                panic!("Not yet implemented")
+            svt => {
+                Sv::NIMPL(svt, sv)
             }
         }
     }

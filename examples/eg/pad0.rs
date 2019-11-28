@@ -4,14 +4,33 @@ use std::os::raw::c_char;
 use std::ffi::CStr;
 use libperl_sys::*;
 
-pub fn cv_padnamelist<'a>(cv: *const CV) -> Option<&'a PADNAMELIST> {
+use super::av0::*;
+
+pub fn CvPADLIST(cv: *const CV) -> *const PADLIST {
     let xpvcv = unsafe {(*cv).sv_any};
     // print!("xpvcv = {:?}\n", unsafe {*xpvcv});
 
-    let padlist = unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist};
-    // print!("padlist = {:?}\n", unsafe {*padlist});
+    unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist}
+}
 
-    let padnamelist_ptr = fetch_padnamelist(padlist);
+pub fn PadlistARRAY(pl: *const PADLIST) -> *const *const PAD {
+    (unsafe {(*pl).xpadl_arr.xpadlarr_alloc})
+        as *const *const PAD
+}
+
+pub fn PAD_BASE_SV(pl: *const PADLIST, po: isize) -> *const SV {
+    let pad = (unsafe {*(PadlistARRAY(pl).add(1))})
+        as *const AV;
+    if pad.is_null() {
+        std::ptr::null()
+    } else {
+        let array = AvARRAY(pad);
+        unsafe {*(array.add(po as usize)) as *const SV}
+    }
+}
+
+pub fn cv_padnamelist<'a>(cv: *const CV) -> Option<&'a PADNAMELIST> {
+    let padnamelist_ptr = fetch_padnamelist(CvPADLIST(cv));
     
     unsafe {padnamelist_ptr.as_ref()}
 }
