@@ -8,7 +8,7 @@ pub fn HvNAME(hv: *const HV) -> Option<String> {
         None
     } else {
         let hek = HvNAME_HEK_NN(hv);
-        if !hek.is_null() {
+        if let Some(hek) = unsafe {hek.as_ref()} {
             Some(HEK_KEY(hek))
         } else {
             None
