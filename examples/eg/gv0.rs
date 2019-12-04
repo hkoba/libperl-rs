@@ -1,6 +1,31 @@
+#![allow(non_snake_case)]
 use libperl_sys;
 use libperl_sys::svtype;
 use super::sv0::*;
+use super::hek0::*;
+
+pub fn GvNAME_HEK(gv: *const libperl_sys::gv) -> *const libperl_sys::HEK {
+    assert!(isGV_with_GP(gv));
+    let xpvgv = unsafe {(*gv).sv_any};
+    unsafe {(*xpvgv).xiv_u.xivu_namehek}
+}
+
+pub fn GvSTASH(gv: *const libperl_sys::gv) -> *const libperl_sys::HV {
+    assert!(isGV_with_GP(gv));
+    let xpvgv = unsafe {(*gv).sv_any};
+    unsafe {(*xpvgv).xnv_u.xgv_stash}
+}
+
+pub fn isGV_with_GP(gv: *const libperl_sys::gv) -> bool {
+    use libperl_sys::{SVp_POK, SVpgv_GP};
+    let flags = unsafe {(*gv).sv_flags};
+    (flags & (SVp_POK|SVpgv_GP)) == SVpgv_GP
+        &&
+        match SvTYPE(gv as *const libperl_sys::sv) {
+            svtype::SVt_PVGV | svtype::SVt_PVLV => true,
+            _ => false,
+        }
+}
 
 #[allow(non_snake_case)]
 pub fn GvCV(gv: *const libperl_sys::gv) -> *const libperl_sys::cv {
@@ -14,10 +39,10 @@ pub fn GvCV(gv: *const libperl_sys::gv) -> *const libperl_sys::cv {
 
 #[allow(non_snake_case)]
 pub fn GvGP(gv: *const libperl_sys::gv) -> *const libperl_sys::gp {
-    match SvTYPE(gv as *const libperl_sys::sv) {
-        svtype::SVt_PVGV | svtype::SVt_PVLV if (unsafe {(*gv).sv_flags} & (libperl_sys::SVp_POK as u32|libperl_sys::SVpgv_GP as u32)) == libperl_sys::SVpgv_GP
-            => unsafe {(*gv).sv_u.svu_gp},
-        _ => std::ptr::null()
+    if isGV_with_GP(gv) {
+        unsafe {(*gv).sv_u.svu_gp}
+    } else {
+        std::ptr::null()
     }
 }
 
@@ -29,16 +54,10 @@ pub fn GvLINE(gv: *const libperl_sys::gv) -> u32 {
 }
 
 #[allow(non_snake_case)]
-pub fn GvFILE(gv: *const libperl_sys::gv) -> Option<String> {
+pub fn GvFILE(gv: *const libperl_sys::gv) -> String {
     let gp = GvGP(gv);
     assert_ne!(gp, std::ptr::null_mut());
-    let hek = unsafe {(*gp).gp_file_hek};
-    if ! hek.is_null() {
-        let cs = unsafe {&(*hek).hek_key[0]};
-        Some(unsafe {std::ffi::CStr::from_ptr(cs).to_string_lossy().into_owned()})
-    } else {
-        None
-    }
+    HEK_KEY(unsafe {(*gp).gp_file_hek})
 }
 
 
