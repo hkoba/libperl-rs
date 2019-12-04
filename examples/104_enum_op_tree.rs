@@ -9,6 +9,7 @@ use eg::op0::*;
 #[cfg(perlapi_ver26)]
 pub struct Walker<'a> {
     pub perl: &'a Perl,
+    pub cv: *const libperl_sys::cv,
 }
 
 #[cfg(perlapi_ver26)]
@@ -18,7 +19,7 @@ impl<'a> Walker<'a> {
             self.walk(kid, level+1);
         }
         print!("{}", "  ".repeat(level as usize));
-        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, o));
+        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, self.cv, o));
     }
 }
 
@@ -27,7 +28,7 @@ fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
     
-    let walker = Walker {perl: &perl};
+    let walker = Walker {perl: &perl, cv: perl.get_main_cv()};
 
     walker.walk(perl.get_main_root(), 0);
 }

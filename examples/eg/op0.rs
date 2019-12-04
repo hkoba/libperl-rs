@@ -7,7 +7,7 @@ use super::sv0::{Sv, sv_extract};
 use super::pad0::*;
 
 #[derive(Debug)]
-pub enum Op <'a> {
+pub enum Op/* <'a>*/ {
     NULL,
     OP (opcode/*, &'a op*/),
     UNOP (opcode/*, &'a unop*/),
@@ -15,8 +15,8 @@ pub enum Op <'a> {
     LOGOP (opcode/*, &'a logop*/),
     LISTOP (opcode/*, &'a listop*/),
     PMOP (opcode/*, &'a pmop*/),
-    SVOP (opcode, Sv<'a>),
-    PADOP (opcode, Sv<'a>),
+    SVOP (opcode, Sv/*<'a>*/),
+    PADOP (opcode, Sv/*<'a>*/),
     PVOP (opcode/*, &'a pvop*/),
     LOOP (opcode/*, &'a loop_*/),
     COP (opcode/*, &'a cop*/),

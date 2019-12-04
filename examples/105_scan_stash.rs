@@ -52,7 +52,7 @@ fn my_test() {
             emitter(&name, cv)
         }
         // ref (\$main::{foo}) eq 'GLOB'
-        else if let Sv::GLOB(gv, _, _) = sv_extract(item) {
+        else if let Sv::GLOB {gv, ..} = sv_extract(item) {
             let cv = GvCV(gv);
             if let Some(file) = CvFILE(cv) {
                 if file == "-e" {

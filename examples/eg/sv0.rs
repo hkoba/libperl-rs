@@ -1,24 +1,36 @@
-pub use libperl_sys::svtype;
 #![allow(non_snake_case)]
 
+pub use libperl_sys::{SV, svtype};
+
 use super::gv0::*;
+use super::hek0::*;
+use super::hv0::*;
 
 #[derive(Debug)]
-pub enum Sv<'a> {
+pub enum Sv {
     SCALAR(*const libperl_sys::sv),
-    GLOB(*const libperl_sys::gv, &'a libperl_sys::xpvgv, Option<&'a libperl_sys::gp>),
+    GLOB {
+        gv: *const libperl_sys::gv,
+        name: String,
+        stash: (Option<String>, *const libperl_sys::HV),
+        gp: *const libperl_sys::gp,
+    },
     ARRAY(*const libperl_sys::av),
     HASH(*const libperl_sys::hv),
     CODE(*const libperl_sys::cv),
     NIMPL(svtype, *const libperl_sys::sv),
 }
 
-pub fn sv_extract<'a>(sv: *const libperl_sys::sv) -> Sv<'a> {
+pub fn sv_extract/*<'a>*/(sv: *const libperl_sys::sv) -> Sv/*<'a>*/ {
     if svtype_raw(sv) == svtype::SVt_PVGV as u32 {
         let gv = sv as *const libperl_sys::gv;
-        Sv::GLOB(gv
-                 , unsafe {(*gv).sv_any.as_ref().unwrap()}
-                 , unsafe {GvGP(gv).as_ref()})
+        let stash = GvSTASH(gv);
+        Sv::GLOB {
+            gv,
+            name: HEK_KEY(GvNAME_HEK(gv)),
+            stash: (HvNAME(stash), stash),
+            gp: GvGP(gv),
+        }
     }
     else if svtype_raw(sv) < svtype::SVt_PVAV as u32 {
         // let flags = unsafe {(*sv).sv_flags};
