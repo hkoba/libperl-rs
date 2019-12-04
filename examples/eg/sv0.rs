@@ -1,4 +1,5 @@
 pub use libperl_sys::svtype;
+#![allow(non_snake_case)]
 
 use super::gv0::*;
 
@@ -41,7 +42,6 @@ pub fn sv_extract<'a>(sv: *const libperl_sys::sv) -> Sv<'a> {
     }
 }
 
-#[allow(non_snake_case)]
 pub fn SvTYPE(sv: *const libperl_sys::sv) -> svtype {
     let svt = svtype_raw(sv);
     unsafe {*(&svt as *const u32 as *const svtype)}
@@ -51,7 +51,6 @@ pub fn svtype_raw(sv: *const libperl_sys::sv) -> u32 {
     flags & libperl_sys::SVTYPEMASK
 }
 
-#[allow(non_snake_case)]
 pub fn SvRV<'a>(sv: *const libperl_sys::sv) -> Option<&'a libperl_sys::sv> {
     if (unsafe {(*sv).sv_flags} & libperl_sys::SVf_ROK) != 0 {
         let s = unsafe {(*sv).sv_u.svu_rv};
