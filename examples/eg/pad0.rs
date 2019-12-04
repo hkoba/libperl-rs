@@ -13,8 +13,15 @@ pub fn CvPADLIST(cv: *const CV) -> *const PADLIST {
     unsafe {(*xpvcv).xcv_padlist_u.xcv_padlist}
 }
 
+#[cfg(perlapi_ver24)]
 pub fn PadlistARRAY(pl: *const PADLIST) -> *const *const PAD {
     (unsafe {(*pl).xpadl_arr.xpadlarr_alloc})
+        as *const *const PAD
+}
+
+#[cfg(not(perlapi_ver24))]
+pub fn PadlistARRAY(pl: *const PADLIST) -> *const *const PAD {
+    (unsafe { (*pl).xpadl_alloc })
         as *const *const PAD
 }
 
