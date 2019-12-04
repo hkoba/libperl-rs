@@ -12,3 +12,7 @@ pub mod cv0;
 pub mod gv0;
 #[allow(dead_code)]
 pub mod av0;
+#[allow(dead_code)]
+pub mod hek0;
+#[allow(dead_code)]
+pub mod hv0;

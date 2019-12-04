@@ -5,6 +5,7 @@ use std::ffi::CStr;
 use libperl_sys::*;
 
 use super::av0::*;
+use super::hv0::*;
 
 pub fn CvPADLIST(cv: *const CV) -> *const PADLIST {
     let xpvcv = unsafe {(*cv).sv_any};
@@ -64,7 +65,7 @@ pub fn perl__PadnameTYPE(pn: &padname) -> Option<String> {
     else if let Some(typestash) = unsafe {
         pn.xpadn_type_u.xpadn_typestash.as_ref()
     } {
-        Some(hvname_get(typestash))
+        HvNAME(typestash)
     }
     else {
         None
@@ -80,41 +81,4 @@ pub fn perl__PadnamePV(pn: &padname) -> Option<String> {
         let varname = unsafe {CStr::from_ptr(pn.xpadn_pv)};
         Some(varname.to_string_lossy().into_owned())
     }
-}
-
-fn hv_svook(hv: &HV) -> bool {
-    (hv.sv_flags & SVf_OOK) != 0
-}
-
-fn hv_sv_any(hv: &HV) -> xpvhv {
-    unsafe {*(hv.sv_any as *const xpvhv)}
-}
-
-fn hvaux(hv: &HV) -> *const xpvhv_aux {
-    unsafe {
-        hv.sv_u.svu_hash.add(hv_sv_any(hv).xhv_max + 1)
-            as *const xpvhv_aux
-    }
-}
-
-fn hvaux_hek(hvaux: &xpvhv_aux) -> *const HEK {
-    if unsafe {hvaux.xhv_name_u.xhvnameu_name}.is_null() {
-        std::ptr::null()
-    }
-    else if hvaux.xhv_name_count > 0 {
-        unsafe {*hvaux.xhv_name_u.xhvnameu_names}
-    } else {
-        unsafe {hvaux.xhv_name_u.xhvnameu_name}
-    }
-}
-
-pub fn hvname_get(hv: &HV) -> String {
-    if hv_svook(hv) {
-        let aux = unsafe {*hvaux(hv)};
-        if let Some(hek) = unsafe {hvaux_hek(&aux).as_ref()} {
-            return unsafe {CStr::from_ptr(&hek.hek_key[0] as *const c_char)}
-                .to_string_lossy().into_owned()
-        }
-    }
-    String::new()
 }
