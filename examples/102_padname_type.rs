@@ -27,8 +27,8 @@ fn my_test() {
             let padname = eg::pad0::padnamelist_nth(padnamelist, ix).unwrap();
             println!("padname {} = var{{name: {:?}}}, type: {:?}"
                      , ix
-                     , eg::pad0::perl__PadnamePV(padname)
-                     , eg::pad0::perl__PadnameTYPE(padname)
+                     , eg::pad0::PadnamePV(padname)
+                     , eg::pad0::PadnameTYPE(padname)
             );
             ix += 1;
         }

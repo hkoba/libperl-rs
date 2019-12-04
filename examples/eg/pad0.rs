@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 
-use std::os::raw::c_char;
 use std::ffi::CStr;
 use libperl_sys::*;
 
@@ -58,7 +57,7 @@ pub fn fetch_padnamelist(padlist: *const PADLIST) -> *const PADNAMELIST {
 }
 
 #[cfg(perlapi_ver22)]
-pub fn perl__PadnameTYPE(pn: &padname) -> Option<String> {
+pub fn PadnameTYPE(pn: &padname) -> Option<String> {
     if pn.xpadn_pv.is_null() {
         None
     }
@@ -73,7 +72,7 @@ pub fn perl__PadnameTYPE(pn: &padname) -> Option<String> {
 }
 
 #[cfg(perlapi_ver22)]
-pub fn perl__PadnamePV(pn: &padname) -> Option<String> {
+pub fn PadnamePV(pn: &padname) -> Option<String> {
     if pn.xpadn_pv.is_null() {
         None
     }
