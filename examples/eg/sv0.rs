@@ -60,3 +60,11 @@ pub fn SvRV<'a>(sv: *const libperl_sys::sv) -> Option<&'a libperl_sys::sv> {
         None
     }
 }
+
+pub fn SvOOK(sv: *const SV) -> bool {
+    if sv.is_null() {
+        false
+    } else {
+        (unsafe {(*sv)}.sv_flags & libperl_sys::SVf_OOK) != 0
+    }
+}
