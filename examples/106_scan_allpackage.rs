@@ -58,10 +58,6 @@ fn stash_subs(perl: &Perl, pack: &str, seen: &mut Seen) {
     // let mut packages = Vec::new();
     for (name, item) in eg::hv_iter0::HvIter::new(&perl, stash) {
 
-        if name == "strerror2lintresult" || name == "process_request" {
-            println!("Found target! name = {}", name);
-        }
-
         // ref $main::{foo} eq 'CODE'
         if let Some(Sv::CODE(cv)) = SvRV(item).map(|sv| sv_extract(sv)) {
             emitter(&name, cv)
