@@ -37,12 +37,17 @@ pub fn PAD_BASE_SV(pl: *const PADLIST, po: isize) -> *const SV {
 }
 
 pub fn cv_padnamelist<'a>(cv: *const CV) -> Option<&'a PADNAMELIST> {
-    let padnamelist_ptr = fetch_padnamelist(CvPADLIST(cv));
+    let pl = CvPADLIST(cv);
+    if pl.is_null() {return None}
+    let padnamelist_ptr = fetch_padnamelist(pl);
     
     unsafe {padnamelist_ptr.as_ref()}
 }
 
 pub fn padnamelist_nth<'a>(pn: &padnamelist, ix: usize) -> Option<&'a padname> {
+    if ix >= (unsafe {*pn}.xpadnl_max) as usize {
+        return None
+    }
     unsafe {
         (*(pn.xpadnl_alloc.add(ix))).as_ref()
     }
