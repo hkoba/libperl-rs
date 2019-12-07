@@ -20,7 +20,7 @@ pub enum Op/* <'a>*/ {
     PVOP (opcode/*, &'a pvop*/),
     LOOP (opcode/*, &'a loop_*/),
     COP (opcode/*, &'a cop*/),
-    METHOP (opcode/*, &'a methop*/),
+    METHOP (opcode, Sv),
 }
 
 #[cfg(perlapi_ver26)]
@@ -39,12 +39,7 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
         OPclass::OPclass_LISTOP => Op::LISTOP(oc/*, unsafe {(o as *const listop).as_ref()}.unwrap()*/),
         OPclass::OPclass_PMOP => Op::PMOP(oc/*, unsafe {(o as *const pmop).as_ref()}.unwrap()*/),
         OPclass::OPclass_SVOP => {
-            let op = unsafe {(o as *const svop).as_ref()}.unwrap();
-            let sv = if !op.op_sv.is_null() {
-                op.op_sv
-            } else {
-                PAD_BASE_SV(CvPADLIST(cv), op.op_targ)
-            };
+            let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
             Op::SVOP(oc, sv_extract(sv))
         },
         OPclass::OPclass_PADOP => {
@@ -55,12 +50,26 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
         OPclass::OPclass_PVOP => Op::PVOP(oc/*, unsafe {(o as *const pvop).as_ref()}.unwrap()*/),
         OPclass::OPclass_LOOP => Op::LOOP(oc/*, unsafe {(o as *const loop_).as_ref()}.unwrap()*/),
         OPclass::OPclass_COP => Op::COP(oc/*, unsafe {(o as *const cop).as_ref()}.unwrap()*/),
-        OPclass::OPclass_METHOP => Op::METHOP(oc/*, unsafe {(o as *const methop).as_ref()}.unwrap()*/),
+        OPclass::OPclass_METHOP => {
+            let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
+            Op::METHOP(oc, sv_extract(sv))
+        },
         //        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc, unsafe {(o as *const unop_aux).as_ref()}.unwrap()),
         _ => panic!("Unknown op type {:#?}", o),
     }
 }
     
+pub fn op_sv_or<F>(op: *const op, f: F) -> *const libperl_sys::sv
+    where F: Fn(&svop) -> *const libperl_sys::sv
+{
+    let svop = unsafe {(op as *const svop).as_ref()}.unwrap();
+    if !svop.op_sv.is_null() {
+        svop.op_sv
+    } else {
+        f(svop)
+    }
+}
+
 pub fn next_iter(op: *const op) -> OpNextIter {
     OpNextIter {op}
 }
