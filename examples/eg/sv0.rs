@@ -57,6 +57,12 @@ pub fn sv_extract/*<'a>*/(sv: *const libperl_sys::sv) -> Sv/*<'a>*/ {
                 gp: GvGP(gv),
             }
         },
+        // svtype::SVt_IV => {
+        //     Sv::SCALAR {
+        //         svtype: SvTYPE(sv), sv, ivuv: sv_extract_ivuv(sv),
+        //         nv: None, pv: None, rv: None,
+        //     }
+        // },
         _ => sv_extract_scalar(sv),
     }
 }
@@ -89,13 +95,15 @@ fn sv_extract_pv(sv: *const libperl_sys::sv) -> Option<String> {
 
 fn sv_has_pv(sv: *const libperl_sys::sv) -> bool {
     match SvTYPE(sv) {
-        svtype::SVt_IV | svtype::SVt_NV | svtype::SVt_PV | svtype::SVt_PVIV |
-        svtype::SVt_PVNV | svtype::SVt_PVMG | svtype::SVt_INVLIST |
+        svtype::SVt_PV | 
+        svtype::SVt_INVLIST |
         svtype::SVt_REGEXP => true,
         svtype::SVt_PVGV | svtype::SVt_PVLV => {
             use libperl_sys::{SVp_POK, SVpgv_GP};
             (SvFLAGS(sv) & (SVp_POK|SVpgv_GP)) != SVpgv_GP
         },
+        // svtype::SVt_PVMG => {
+        // },
         // SVt_PVIO => {
         //     // IoFLAGS(sv) & IOf_FAKE_DIRP
         // },
