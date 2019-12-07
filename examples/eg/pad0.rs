@@ -45,7 +45,7 @@ pub fn cv_padnamelist<'a>(cv: *const CV) -> Option<&'a PADNAMELIST> {
 }
 
 pub fn padnamelist_nth<'a>(pn: &padnamelist, ix: usize) -> Option<&'a padname> {
-    if ix >= (unsafe {*pn}.xpadnl_max) as usize {
+    if ix >= (pn.xpadnl_max) as usize {
         return None
     }
     unsafe {

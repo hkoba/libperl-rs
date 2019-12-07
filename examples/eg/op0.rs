@@ -1,4 +1,4 @@
-#![allow(non_snanke_case)]
+#![allow(non_snake_case)]
 pub use libperl_sys::op;
 
 use libperl_sys::*;
@@ -7,6 +7,7 @@ use libperl_rs::Perl;
 use super::sv0::{Sv, sv_extract};
 use super::pad0::*;
 
+#[allow(non_camel_case_types)]
 #[derive(Debug)]
 pub enum Op/* <'a>*/ {
     NULL,
@@ -78,7 +79,6 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
         },
         #[cfg(perlapi_ver26)]
         OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc /*, unsafe {(o as *const unop_aux).as_ref()}.unwrap()*/),
-        _ => panic!("Unknown op type {:?} {:#?}", cls, o),
     }
 }
     
