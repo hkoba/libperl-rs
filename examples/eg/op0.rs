@@ -1,3 +1,4 @@
+#![allow(non_snanke_case)]
 pub use libperl_sys::op;
 
 use libperl_sys::*;
