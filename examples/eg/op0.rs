@@ -20,7 +20,14 @@ pub enum Op/* <'a>*/ {
     PVOP (opcode/*, &'a pvop*/),
     LOOP (opcode/*, &'a loop_*/),
     COP (opcode/*, &'a cop*/),
-    METHOP (opcode, Sv),
+    METHOP (opcode, Name),
+    UNOP_AUX(opcode),
+}
+
+#[derive(Debug)]
+pub enum Name {
+    Dynamic,
+    Const(Sv),
 }
 
 #[cfg(perlapi_ver26)]
@@ -34,9 +41,12 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
         OPclass::OPclass_NULL => Op::NULL,
         OPclass::OPclass_BASEOP => {
             let op = unsafe {o.as_ref().unwrap()};
-            let pl = cv_padnamelist(cv).unwrap();
-            let padname = padnamelist_nth(pl, op.op_targ as usize).unwrap();
-            Op::OP(oc, PadnamePV(padname), PadnameTYPE(padname))
+            if let Some(pl) = cv_padnamelist(cv) {
+                if let Some(padname) = padnamelist_nth(pl, op.op_targ as usize) {
+                    return Op::OP(oc, PadnamePV(padname), PadnameTYPE(padname))
+                }
+            }
+            Op::OP(oc, None, None)
         },
         OPclass::OPclass_UNOP => Op::UNOP(oc/*, unsafe {(o as *const unop).as_ref()}.unwrap()*/),
         OPclass::OPclass_BINOP => Op::BINOP(oc/*, unsafe {(o as *const binop).as_ref()}.unwrap()*/),
@@ -56,11 +66,16 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
         OPclass::OPclass_LOOP => Op::LOOP(oc/*, unsafe {(o as *const loop_).as_ref()}.unwrap()*/),
         OPclass::OPclass_COP => Op::COP(oc/*, unsafe {(o as *const cop).as_ref()}.unwrap()*/),
         OPclass::OPclass_METHOP => {
-            let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
-            Op::METHOP(oc, sv_extract(sv))
+            if (unsafe {*o}.op_flags & OPf_KIDS as u8) != 0 {
+                Op::METHOP(oc, Name::Dynamic)
+                
+            } else {
+                let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
+                Op::METHOP(oc, Name::Const(sv_extract(sv)))
+            }
         },
-        //        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc, unsafe {(o as *const unop_aux).as_ref()}.unwrap()),
-        _ => panic!("Unknown op type {:#?}", o),
+        OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc /*, unsafe {(o as *const unop_aux).as_ref()}.unwrap()*/),
+        _ => panic!("Unknown op type {:?} {:#?}", cls, o),
     }
 }
     
