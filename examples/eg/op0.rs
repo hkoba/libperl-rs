@@ -9,14 +9,14 @@ use super::pad0::*;
 #[derive(Debug)]
 pub enum Op/* <'a>*/ {
     NULL,
-    OP (opcode/*, &'a op*/),
+    OP (opcode, Option<String>, Option<String>),
     UNOP (opcode/*, &'a unop*/),
     BINOP (opcode/*, &'a binop*/),
     LOGOP (opcode/*, &'a logop*/),
     LISTOP (opcode/*, &'a listop*/),
     PMOP (opcode/*, &'a pmop*/),
-    SVOP (opcode, Sv/*<'a>*/),
-    PADOP (opcode, Sv/*<'a>*/),
+    SVOP (opcode, Sv),
+    PADOP (opcode, Sv),
     PVOP (opcode/*, &'a pvop*/),
     LOOP (opcode/*, &'a loop_*/),
     COP (opcode/*, &'a cop*/),
@@ -32,7 +32,12 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
     };
     match cls {
         OPclass::OPclass_NULL => Op::NULL,
-        OPclass::OPclass_BASEOP => Op::OP(oc/*, unsafe {o.as_ref()}.unwrap()*/),
+        OPclass::OPclass_BASEOP => {
+            let op = unsafe {o.as_ref().unwrap()};
+            let pl = cv_padnamelist(cv).unwrap();
+            let padname = padnamelist_nth(pl, op.op_targ as usize).unwrap();
+            Op::OP(oc, PadnamePV(padname), PadnameTYPE(padname))
+        },
         OPclass::OPclass_UNOP => Op::UNOP(oc/*, unsafe {(o as *const unop).as_ref()}.unwrap()*/),
         OPclass::OPclass_BINOP => Op::BINOP(oc/*, unsafe {(o as *const binop).as_ref()}.unwrap()*/),
         OPclass::OPclass_LOGOP => Op::LOGOP(oc/*, unsafe {(o as *const logop).as_ref()}.unwrap()*/),
