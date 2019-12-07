@@ -34,7 +34,9 @@ fn my_test() {
 }
 
 #[cfg(not(perlapi_ver26))]
-fn my_test() {}
+fn my_test() {
+    println!("Requires perl >= 5.26");
+}
 
 fn main() {
     my_test();

@@ -93,6 +93,7 @@ fn stash_subs(perl: &Perl, pack: &str, seen: &mut Seen) {
 
 #[cfg(not(perlapi_ver26))]
 fn my_test() {
+    println!("Requires perl >= 5.26");
 }
 
 fn main() {
