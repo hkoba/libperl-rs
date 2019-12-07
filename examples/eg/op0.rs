@@ -21,6 +21,7 @@ pub enum Op/* <'a>*/ {
     LOOP (opcode/*, &'a loop_*/),
     COP (opcode/*, &'a cop*/),
     METHOP (opcode, Name),
+    #[cfg(perlapi_ver26)]
     UNOP_AUX(opcode),
 }
 
@@ -74,6 +75,7 @@ pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
                 Op::METHOP(oc, Name::Const(sv_extract(sv)))
             }
         },
+        #[cfg(perlapi_ver26)]
         OPclass::OPclass_UNOP_AUX => Op::UNOP_AUX(oc /*, unsafe {(o as *const unop_aux).as_ref()}.unwrap()*/),
         _ => panic!("Unknown op type {:?} {:#?}", cls, o),
     }
