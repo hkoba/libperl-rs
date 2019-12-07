@@ -1,12 +1,13 @@
+#[cfg(perlapi_ver26)]
 use std::env;
 
+#[cfg(perlapi_ver26)]
 use libperl_rs::*;
 
+#[cfg(perlapi_ver26)]
 mod eg;
-use eg::op0::*;
-use eg::sv0::*;
-use eg::cv0::*;
-use eg::gv0::*;
+#[cfg(perlapi_ver26)]
+use eg::{op0::*,sv0::*,cv0::*,gv0::*};
 
 #[cfg(perlapi_ver26)]
 pub struct Walker<'a> {
