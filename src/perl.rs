@@ -9,15 +9,15 @@ use std::env;
 
 #[cfg(perl_useithreads)]
 macro_rules! perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*)) => {
-        $name($my_perl, $($arg),*)
+    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
+        $name($my_perl, $($arg),*) $(as $t)*
     }
 }
 
 #[cfg(not(perl_useithreads))]
 macro_rules! perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*)) => {
-        $name($($arg),*)
+    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
+        $name($($arg),*) $(as $t)*
     }
 }
 
@@ -138,8 +138,8 @@ impl Perl {
 
     pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
         let mut nlen: i32 = 0;
-        let name = unsafe {perl_api!{Perl_hv_iterkey(self.my_perl, he, &mut nlen)}};
-        (name as *const u8, nlen as usize)
+        let name = unsafe {perl_api!{Perl_hv_iterkey(self.my_perl, he, &mut nlen) as *const u8}};
+        (name, nlen as usize)
     }
 
     pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
