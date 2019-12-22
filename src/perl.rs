@@ -1,9 +1,25 @@
+#![allow(non_snake_case)]
+
 use super::libperl_sys::*;
 
 use std::ptr;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
 use std::env;
+
+#[cfg(perl_useithreads)]
+macro_rules! perl_api {
+    ($name:ident ($my_perl:expr $(, $arg:expr)*)) => {
+        $name($my_perl, $($arg),*)
+    }
+}
+
+#[cfg(not(perl_useithreads))]
+macro_rules! perl_api {
+    ($name:ident ($my_perl:expr $(, $arg:expr)*)) => {
+        $name($($arg),*)
+    }
+}
 
 pub struct Perl {
     debug: bool,
@@ -36,7 +52,6 @@ type xsinit_type = extern "C" fn(*mut PerlInterpreter) -> ();
 #[cfg(not(perl_useithreads))]
 type xsinit_type = extern "C" fn() -> ();
 
-#[allow(non_snake_case)]
 #[cfg(perl_useithreads)]
 pub fn newXS(perl: *mut PerlInterpreter, name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
     let name = CString::new(name).unwrap();
@@ -44,7 +59,6 @@ pub fn newXS(perl: *mut PerlInterpreter, name: &str, xsub: XSUBADDR_t, filename:
     unsafe {Perl_newXS(perl, name.as_ptr(), xsub, filename.as_ptr())}
 }
 
-#[allow(non_snake_case)]
 #[cfg(not(perl_useithreads))]
 pub fn newXS(name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
     let name = CString::new(name).unwrap();
@@ -74,8 +88,6 @@ impl Perl {
             debug: false,
         }
     }
-    
-
 
     pub fn parse(&mut self, args: &[&str], envp: &[&str]) -> i32 {
         self.args = args.iter().map(|&arg| CString::new(arg).unwrap())
@@ -110,22 +122,12 @@ impl Perl {
         }
     }
     
-    #[cfg(perl_useithreads)]
     pub fn hv_iterinit(&self, hv: *mut HV) -> i32 {
-        unsafe {Perl_hv_iterinit(self.my_perl, hv)}
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn hv_iterinit(&self, hv: *mut HV) -> i32 {
-        unsafe {Perl_hv_iterinit(hv)}
+        unsafe {perl_api!{Perl_hv_iterinit(self.my_perl, hv)}}
     }
     
-    #[cfg(perl_useithreads)]
     pub fn hv_iternext(&self, hv: *mut HV) -> *mut HE {
-        unsafe {libperl_sys::Perl_hv_iternext_flags(self.my_perl, hv, 0)}
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn hv_iternext(&self, hv: *mut HV) -> *mut HE {
-        unsafe {libperl_sys::Perl_hv_iternext_flags(hv, 0)}
+        unsafe {perl_api!{Perl_hv_iternext_flags(self.my_perl, hv, 0)}}
     }
     
     pub fn hv_iterkey(&self, he: *mut HE) -> String {
@@ -134,26 +136,14 @@ impl Perl {
         String::from_utf8(slice.to_vec()).unwrap()
     }
 
-    #[cfg(perl_useithreads)]
     pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
         let mut nlen: i32 = 0;
-        let name = unsafe {libperl_sys::Perl_hv_iterkey(self.my_perl, he, &mut nlen) as *const u8};
-        (name, nlen as usize)
+        let name = unsafe {perl_api!{Perl_hv_iterkey(self.my_perl, he, &mut nlen)}};
+        (name as *const u8, nlen as usize)
     }
-    #[cfg(not(perl_useithreads))]
-    pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
-        let mut nlen: i32 = 0;
-        let name = unsafe {libperl_sys::Perl_hv_iterkey(he, &mut nlen) as *const u8};
-        (name, nlen as usize)
-    }
- 
-    #[cfg(perl_useithreads)]
+
     pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
-        unsafe {libperl_sys::Perl_hv_iterval(self.my_perl, hv, he)}
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
-        unsafe {libperl_sys::Perl_hv_iterval(hv, he)}
+        unsafe {perl_api!{Perl_hv_iterval(self.my_perl, hv, he)}}
     }
 
     #[cfg(perl_useithreads)]
@@ -165,15 +155,9 @@ impl Perl {
         unsafe {libperl_sys::PL_defstash}
     }
 
-    #[cfg(perl_useithreads)]
     pub fn gv_stashpv(&self, name: &str, flags: i32) -> *mut HV {
         let name = CString::new(name).unwrap();
-        unsafe {Perl_gv_stashpv(self.my_perl, name.as_ptr(), flags)}
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn gv_stashpv(&self, name: &str, flags: i32) -> *mut HV {
-        let name = CString::new(name).unwrap();
-        unsafe {Perl_gv_stashpv(name.as_ptr(), flags)}
+        unsafe {perl_api!{Perl_gv_stashpv(self.my_perl, name.as_ptr(), flags)}}
     }
 
     #[cfg(perl_useithreads)]
@@ -196,24 +180,14 @@ impl Perl {
         unsafe {libperl_sys::PL_main_cv}
     }
 
-    #[cfg(all(perlapi_ver26,perl_useithreads))]
+    #[cfg(all(perlapi_ver26))]
     pub fn op_class(&self, o: *const OP) -> OPclass {
-        unsafe {Perl_op_class(self.my_perl, o)}
-    }
-    #[cfg(all(perlapi_ver26,not(perl_useithreads)))]
-    pub fn op_class(&self, o: *const OP) -> OPclass {
-        unsafe {Perl_op_class(o)}
+        unsafe {perl_api!{Perl_op_class(self.my_perl, o)}}
     }
     
-    #[cfg(perl_useithreads)]
     pub fn get_sv(&self, name: &str, flags: i32) -> *mut SV {
         let name = CString::new(name).unwrap();
-        unsafe {Perl_get_sv(self.my_perl, name.as_ptr(), flags)}
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn get_sv(&self, name: &str, flags: i32) -> *mut SV {
-        let name = CString::new(name).unwrap();
-        unsafe {Perl_get_sv(name.as_ptr(), flags)}
+        unsafe {perl_api!{Perl_get_sv(self.my_perl, name.as_ptr(), flags)}}
     }
 }
 
