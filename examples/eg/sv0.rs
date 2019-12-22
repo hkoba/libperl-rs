@@ -82,16 +82,23 @@ fn sv_extract_scalar(sv: *const libperl_sys::sv) -> Sv {
     }
 }
 
-fn sv_extract_pv(sv: *const libperl_sys::sv) -> Option<String> {
-    if !sv_has_pv(sv) {
-        None
-    } else {
-        let ptr = if isREGEXP(sv) {std::ptr::null()} else {
-            unsafe {(*sv).sv_u.svu_pv}
-        };
+pub fn sv_extract_pv(sv: *const libperl_sys::sv) -> Option<String> {
+    let ptr = SvPVX(sv);
+    if !ptr.is_null() {
         Some (unsafe {std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()})
+    } else {
+        None
     }
 }
+
+pub fn SvPVX(sv: *const libperl_sys::sv) -> *const std::os::raw::c_char {
+    if sv_has_pv(sv) && !isREGEXP(sv) {
+        unsafe {(*sv).sv_u.svu_pv}
+    } else {
+        std::ptr::null()
+    }
+}
+
 
 fn sv_has_pv(sv: *const libperl_sys::sv) -> bool {
     match SvTYPE(sv) {
