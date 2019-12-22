@@ -109,8 +109,10 @@ fn sv_has_pv(sv: *const libperl_sys::sv) -> bool {
             use libperl_sys::{SVp_POK, SVpgv_GP};
             (SvFLAGS(sv) & (SVp_POK|SVpgv_GP)) != SVpgv_GP
         },
-        // svtype::SVt_PVMG => {
-        // },
+        svtype::SVt_PVMG => {
+            use libperl_sys::{SVf_POK, SVp_POK};
+            (SvFLAGS(sv) & (SVf_POK|SVp_POK)) == (SVf_POK|SVp_POK)
+        },
         // SVt_PVIO => {
         //     // IoFLAGS(sv) & IOf_FAKE_DIRP
         // },
