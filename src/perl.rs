@@ -204,6 +204,17 @@ impl Perl {
     pub fn op_class(&self, o: *const OP) -> OPclass {
         unsafe {Perl_op_class(o)}
     }
+    
+    #[cfg(perl_useithreads)]
+    pub fn get_sv(&self, name: &str, flags: i32) -> *mut SV {
+        let name = CString::new(name).unwrap();
+        unsafe {Perl_get_sv(self.my_perl, name.as_ptr(), flags)}
+    }
+    #[cfg(not(perl_useithreads))]
+    pub fn get_sv(&self, name: &str, flags: i32) -> *mut SV {
+        let name = CString::new(name).unwrap();
+        unsafe {Perl_get_sv(name.as_ptr(), flags)}
+    }
 }
 
 pub fn get_cvstash(cv: *const CV) -> *mut HV {
