@@ -37,11 +37,26 @@ impl Drop for Perl {
     }
 }
 
+#[cfg(perl_useithreads)]
+macro_rules! perl_api_decl {
+    (fn $name:ident ($my_perl:ident : *mut PerlInterpreter
+                     $(, $x:ident : $t:ty)*) ) => {
+        fn $name ($my_perl $($x: $y)*)
+    }
+}
+
+#[cfg(not(perl_useithreads))]
+macro_rules! perl_api_decl {
+    (fn $name:ident ($my_perl:ident : *mut PerlInterpreter,
+                     $($x:ident : $t:ty),*) ) => {
+        fn $name ($($x: $y)*)
+    }
+}
+
 extern "C" {
-    #[cfg(perl_useithreads)]
-    fn boot_DynaLoader(perl: *mut PerlInterpreter, cv: *mut CV);
-    #[cfg(not(perl_useithreads))]
-    fn boot_DynaLoader(cv: *mut CV);
+    perl_api_decl!{
+        fn boot_DynaLoader(perl: *mut PerlInterpreter, cv: *mut CV)
+    }
 }
 
 #[allow(non_camel_case_types)]
