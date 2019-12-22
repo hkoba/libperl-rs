@@ -37,7 +37,8 @@ fn my_test() {
     
     assert_eq!(perl.gv_stashpv("main", 0), stash);
     
-    println!("main file = {:?}", CvFILE(perl.get_main_cv()));
+    let main_file = sv_extract_pv(perl.get_sv("0", 0)).unwrap();
+    println!("$0 = {:?}", main_file);
 
     let emitter = |name: &String, cv: *const libperl_sys::cv| {
         let walker = Walker {perl: &perl, cv};
@@ -56,7 +57,7 @@ fn my_test() {
         else if let Sv::GLOB {gv, ..} = sv_extract(item) {
             let cv = GvCV(gv);
             if let Some(file) = CvFILE(cv) {
-                if file == "-e" {
+                if file == main_file {
                     emitter(&name, cv);
                 } else {
                     println!("name = {:?} from file {:?}", name, file);
