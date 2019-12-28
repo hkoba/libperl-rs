@@ -3,6 +3,8 @@ pub mod pad0;
 #[allow(dead_code)]
 pub mod op0;
 #[allow(dead_code)]
+pub mod op1;
+#[allow(dead_code)]
 pub mod hv_iter0;
 #[allow(dead_code)]
 pub mod sv0;

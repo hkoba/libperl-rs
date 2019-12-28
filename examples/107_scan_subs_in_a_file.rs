@@ -7,7 +7,7 @@ use libperl_rs::*;
 #[cfg(perlapi_ver26)]
 mod eg;
 #[cfg(perlapi_ver26)]
-use eg::{op0::*,sv0::*,cv0::*,stash_walker0::*};
+use eg::{op1::*,sv0::*,cv0::*,stash_walker0::*};
 
 #[cfg(perlapi_ver26)]
 pub struct OpWalker<'a> {
@@ -22,9 +22,9 @@ impl<'a> OpWalker<'a> {
         print!("{}", "  ".repeat(level as usize));
         let ox = op_extract(&self.perl, self.cv, o);
         println!("{:?} {:?}", op_name(o), ox);
-        for kid in sibling_iter(o) {
-            self.walk(kid, level+1);
-        }
+        // for kid in sibling_iter(o) {
+        //     self.walk(kid, level+1);
+        // }
     }
 }
 
