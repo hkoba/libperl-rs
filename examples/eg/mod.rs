@@ -16,3 +16,5 @@ pub mod av0;
 pub mod hek0;
 #[allow(dead_code)]
 pub mod hv0;
+#[allow(dead_code)]
+pub mod stash_walker0;
