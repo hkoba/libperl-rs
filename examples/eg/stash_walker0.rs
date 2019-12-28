@@ -7,7 +7,7 @@ type Seen = std::collections::HashMap<String, bool>;
 
 #[cfg(perlapi_ver26)]
 pub struct StashWalker<'a, F, E>
-where F: FnMut(*const libperl_sys::cv) -> bool,
+where F: Fn(*const libperl_sys::cv) -> bool,
       E: FnMut(&String, *const libperl_sys::cv)
 {
     pub perl: &'a Perl,
@@ -40,7 +40,6 @@ where F: Fn(*const libperl_sys::cv) -> bool,
         let stash = self.perl.gv_stashpv(pack, 0);
         if stash.is_null() {return}
 
-        // let mut packages = Vec::new();
         for (name, item) in hv_iter0::HvIter::new(&self.perl, stash) {
 
             // ref $main::{foo} eq 'CODE'
