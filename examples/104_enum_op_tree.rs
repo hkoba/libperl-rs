@@ -15,11 +15,11 @@ pub struct Walker<'a> {
 #[cfg(perlapi_ver26)]
 impl<'a> Walker<'a> {
     pub fn walk(&'a self, o: *const op, level: isize) {
+        print!("{}", "  ".repeat(level as usize));
+        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, self.cv, o));
         for kid in sibling_iter(o) {
             self.walk(kid, level+1);
         }
-        print!("{}", "  ".repeat(level as usize));
-        println!("{:?} {:?}", op_name(o), op_extract(&self.perl, self.cv, o));
     }
 }
 
