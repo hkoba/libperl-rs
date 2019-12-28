@@ -10,13 +10,13 @@ mod eg;
 use eg::{op0::*,sv0::*,cv0::*,gv0::*};
 
 #[cfg(perlapi_ver26)]
-pub struct Walker<'a> {
+pub struct OpWalker<'a> {
     pub perl: &'a Perl,
     pub cv: *const libperl_sys::cv,
 }
 
 #[cfg(perlapi_ver26)]
-impl<'a> Walker<'a> {
+impl<'a> OpWalker<'a> {
     pub fn walk(&'a self, o: *const op, level: isize) {
         if o.is_null() {return}
         print!("{}", "  ".repeat(level as usize));
@@ -24,6 +24,79 @@ impl<'a> Walker<'a> {
         println!("{:?} {:?}", op_name(o), ox);
         for kid in sibling_iter(o) {
             self.walk(kid, level+1);
+        }
+    }
+}
+
+#[cfg(perlapi_ver26)]
+type Seen = std::collections::HashMap<String, bool>;
+type Filter = Option<dyn Fn(*const libperl_sys::cv) -> bool>;
+type Emitter = Option<dyn Fn(&String, *const libperl_sys::cv)>;
+
+#[cfg(perlapi_ver26)]
+pub struct StashWalker<'a> {
+    pub perl: &'a Perl,
+    pub seen: Seen,
+    pub filter: &'a Filter,
+    pub emitter: &'a Emitter,
+}
+
+#[cfg(perlapi_ver26)]
+impl<'a> StashWalker<'a> {
+    pub fn new(perl: &'a Perl) -> Self {
+        let seen = Seen::new();
+        seen.insert("main".to_string(), true); // To avoid main::main::main...
+        Self {
+            perl: &perl, seen, filter: None, emitter: None
+        }
+    }
+
+    pub fn filter(self, filter: &'a Filter) -> Self {
+        self.filter = filter;
+        self
+    }
+    pub fn emitter(self, emitter: &'a Emitter) -> Self {
+        self.emitter = emitter;
+        self
+    }
+
+    pub fn walk(&self, pack: &str) {
+        //println!("pack = {}", pack);
+
+        if self.seen.contains_key(pack) {return};
+        self.seen.insert(pack.to_string(), true);
+        
+        let stash = self.perl.gv_stashpv(pack, 0);
+        if stash.is_null() {return}
+
+        // let mut packages = Vec::new();
+        for (name, item) in eg::hv_iter0::HvIter::new(&self.perl, stash) {
+
+            // ref $main::{foo} eq 'CODE'
+            if let Some(Sv::CODE(cv)) = SvRV(item).map(|sv| sv_extract(sv)) {
+                if self.filter.map_or(true, |f| f(cv)) {
+                    self.emitter(&name, cv);
+                }
+            }
+            // ref (\$main::{foo}) eq 'GLOB'
+            else if let Sv::GLOB {gv, ..} = sv_extract(item) {
+                let cv = GvCV(gv);
+                if self.filter.map_or(true, |f| f(cv)) {
+                    self.emitter(&name, cv);
+                }
+                if name.ends_with("::") {
+                    // println!("package name = {}", name);
+                    if let Some(pure) = name.get(..name.len() - 2) {
+                        if !self.seen.contains_key(pure) {
+                            // packages.push(String::from(pure.clone()));
+                            let mut fullpack = String::from(pack);
+                            fullpack.push_str("::");
+                            fullpack.push_str(pure);
+                            self.walk(fullpack.as_str());
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -38,63 +111,16 @@ fn my_test() {
 
     let main_file = sv_extract_pv(perl.get_sv("0", 0)).unwrap();
     println!("$0 = {:?}", main_file);
-
-    stash_subs(&perl, &main_file, "", &mut seen);
-}
-
-#[cfg(perlapi_ver26)]
-type Seen = std::collections::HashMap<String, bool>;
-
-#[cfg(perlapi_ver26)]
-fn stash_subs(perl: &Perl, main_file: &String, pack: &str, seen: &mut Seen) {
-    // println!("pack = {}", pack);
-
-    if seen.contains_key(pack) {return};
-    seen.insert(pack.to_string(), true);
     
-    let stash = perl.gv_stashpv(pack, 0);
-    if stash.is_null() {return}
-
-    let emitter = |name: &String, cv: *const libperl_sys::cv| {
-        let walker = Walker {perl: &perl, cv};
-        println!("sub {:?}", name);
-        walker.walk(CvROOT(cv), 0);
-        println!("");
-    };
-
-    // let mut packages = Vec::new();
-    for (name, item) in eg::hv_iter0::HvIter::new(&perl, stash) {
-
-        // ref $main::{foo} eq 'CODE'
-        if let Some(Sv::CODE(cv)) = SvRV(item).map(|sv| sv_extract(sv)) {
-            if CvFILE(cv).map_or(false, |s| &s == main_file) {
-                emitter(&name, cv);
-            }
-        }
-        // ref (\$main::{foo}) eq 'GLOB'
-        else if let Sv::GLOB {gv, ..} = sv_extract(item) {
-            let cv = GvCV(gv);
-            if CvFILE(cv).map_or(false, |s| &s == main_file) {
-                emitter(&name, cv);
-            }
-            if name.ends_with("::") {
-                // println!("package name = {}", name);
-                if let Some(pure) = name.get(..name.len() - 2) {
-                    if !seen.contains_key(pure) {
-                        // packages.push(String::from(pure.clone()));
-                        let mut fullpack = String::from(pack);
-                        fullpack.push_str("::");
-                        fullpack.push_str(pure);
-                        stash_subs(perl, main_file, fullpack.as_str(), seen);
-                    }
-                }
-            }
-        }
-    }
-    
-    // for pkg in packages {
-    //     stash_subs(perl, pkg.as_str(), seen);
-    // }
+    StashWalker::new(&perl)
+        .filter(|cv| CvFILE(cv).map_or(false, |s| &s == main_file))
+        .emitter(|name: &String, cv: *const libperl_sys::cv| {
+            let walker = OpWalker {perl: &perl, cv};
+            println!("sub {:?}", name);
+            walker.walk(CvROOT(cv), 0);
+            println!("");
+        })
+        .walk("");
 }
 
 #[cfg(not(perlapi_ver26))]
