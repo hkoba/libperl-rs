@@ -25,8 +25,7 @@ pub enum Op<'a> {
     BINOP {opcode: opcode, sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>},
     LOGOP {opcode: opcode// , sibling: &'a Op<'a>, first: &'a Op<'a>, other: &'a Op<'a>
     },
-    LISTOP {opcode: opcode// , sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>
-    },
+    LISTOP {opcode: opcode, sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>},
     PMOP {opcode: opcode// , sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>
     },
     SVOP (opcode, Sv),
@@ -34,7 +33,7 @@ pub enum Op<'a> {
     PVOP (opcode/*, &'a pvop*/),
     LOOP {opcode: opcode// , sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>, redoop: &'a Op<'a>, next: &'a Op<'a>, last: &'a Op<'a>
     },
-    COP (opcode/*, &'a cop*/),
+    COP {opcode: opcode, sibling: &'a Op<'a>},
     METHOP(opcode, Name),
     // {opcode: opcode, sibling: &'a Op<'a>, name: Name},
     #[cfg(perlapi_ver26)]
@@ -91,7 +90,15 @@ impl<'a> OpExtractor<'a> {
                 }
             },
             OPclass::OPclass_LOGOP => Op::LOGOP {opcode: oc},
-            OPclass::OPclass_LISTOP => Op::LISTOP {opcode: oc},
+            OPclass::OPclass_LISTOP => {
+                let op = unsafe {(o as *const listop).as_ref()}.unwrap();
+                let sibling = self.extract(cv, op_sibling(o as *const unop));
+                Op::LISTOP {
+                    opcode: oc, sibling,
+                    first: self.extract(cv, op.op_first),
+                    last: self.extract(cv, op.op_last),
+                }
+            },
             OPclass::OPclass_PMOP => Op::PMOP {opcode: oc},
             OPclass::OPclass_SVOP => {
                 let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
@@ -104,7 +111,13 @@ impl<'a> OpExtractor<'a> {
             },
             OPclass::OPclass_PVOP => Op::PVOP (oc),
             OPclass::OPclass_LOOP => Op::LOOP {opcode: oc},
-            OPclass::OPclass_COP => Op::COP (oc),
+            OPclass::OPclass_COP => {
+                // let op = unsafe {(o as *const cop).as_ref()}.unwrap();
+                let sibling = self.extract(cv, op_sibling(o as *const unop));
+                Op::COP {
+                    opcode: oc, sibling,
+                }
+            },
             OPclass::OPclass_METHOP => {
                 if (unsafe {*o}.op_flags & OPf_KIDS as u8) != 0 {
                     Op::METHOP (oc, Name::Dynamic)
