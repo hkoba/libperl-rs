@@ -23,7 +23,7 @@ fn my_test() {
 
     let mut emitter = |name: &String, cv: *const libperl_sys::cv| {
         println!("sub {:?}", name);
-        println!("{:?}", op_extractor.extract(cv, CvROOT(cv)));
+        println!("{:#?}", op_extractor.extract(cv, CvROOT(cv)));
         println!("");
     };
 
