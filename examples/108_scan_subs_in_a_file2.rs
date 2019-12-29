@@ -14,7 +14,7 @@ fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
     
-    let mut op_extractor = OpExtractor::new(&perl);
+    let op_extractor = OpExtractor::new(&perl);
 
     let main_file = sv_extract_pv(perl.get_sv("0", 0)).unwrap();
     println!("$0 = {:?}", main_file);

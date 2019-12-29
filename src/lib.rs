@@ -1,5 +1,9 @@
 extern crate libperl_sys;
 
+#[allow(unused_imports)]
+#[macro_use]
+extern crate if_chain; // For OpExtractor
+
 pub mod perl;
 pub use perl::*;
 

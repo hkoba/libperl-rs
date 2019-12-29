@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 pub use libperl_sys::op;
 
+use if_chain::if_chain;
+
 use libperl_sys::*;
 use libperl_rs::Perl;
 
@@ -62,8 +64,10 @@ impl<'a> OpExtractor<'a> {
             OPclass::OPclass_BASEOP => {
                 let op = unsafe {o.as_ref().unwrap()};
                 let sibling = self.extract(cv, op_sibling(o as *const unop));
-                if let Some(pl) = cv_padnamelist(cv) {
-                    if let Some(padname) = padnamelist_nth(pl, op.op_targ as usize) {
+                if_chain! {
+                    if let Some(pl) = cv_padnamelist(cv);
+                    if let Some(padname) = padnamelist_nth(pl, op.op_targ as usize);
+                    then {
                         Op::OP {
                             opcode: oc, name: PadnamePV(padname), typ: PadnameTYPE(padname),
                             sibling
@@ -71,8 +75,6 @@ impl<'a> OpExtractor<'a> {
                     } else {
                         Op::OP {opcode: oc, name: None, typ: None, sibling}
                     }
-                } else {
-                    Op::OP {opcode: oc, name: None, typ: None, sibling}
                 }
             },
             OPclass::OPclass_UNOP => {
