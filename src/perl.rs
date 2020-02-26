@@ -8,6 +8,7 @@ use std::os::raw::{c_char, c_int};
 use std::env;
 
 #[cfg(perl_useithreads)]
+#[macro_export]
 macro_rules! perl_api {
     ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
         $name($my_perl, $($arg),*) $(as $t)*
@@ -15,6 +16,7 @@ macro_rules! perl_api {
 }
 
 #[cfg(not(perl_useithreads))]
+#[macro_export]
 macro_rules! perl_api {
     ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
         $name($($arg),*) $(as $t)*
