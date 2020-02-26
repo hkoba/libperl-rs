@@ -18,30 +18,33 @@ pub struct OpExtractor<'a> {
     ops: Arena<Op<'a>>,
 }
 
+#[derive(Debug)]
+pub struct PadNameType {
+    name: Option<String>,
+    typ: Option<String>,
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug)]
 pub enum Op<'a> {
     NULL,
-    OP {opcode: opcode, name: Option<String>, typ: Option<String>, sibling: &'a Op<'a>},
-    UNOP {opcode: opcode, first: &'a Op<'a>, sibling: &'a Op<'a>},
-    BINOP {opcode: opcode, first: &'a Op<'a> /*, last: &'a Op<'a>*/, sibling: &'a Op<'a>},
-    LOGOP {opcode: opcode, first: &'a Op<'a> /*, other: &'a Op<'a>*/
-           , sibling: &'a Op<'a>
-    },
-    LISTOP {opcode: opcode, first: &'a Op<'a>, sibling: &'a Op<'a>, // , last: &'a Op<'a>
-    },
+    OP (opcode, Option<PadNameType>, &'a Op<'a>),
+    UNOP (opcode, &'a Op<'a>, &'a Op<'a>),
+    BINOP (opcode, &'a Op<'a>, &'a Op<'a>),
+    LOGOP (opcode, &'a Op<'a>, &'a Op<'a>),
+    LISTOP (opcode, &'a Op<'a>, &'a Op<'a>), // , last: &'a Op<'a>
     PMOP {opcode: opcode// , sibling: &'a Op<'a>, first: &'a Op<'a>, last: &'a Op<'a>
     },
-    SVOP {opcode: opcode, sibling: &'a Op<'a>, sv: Sv},
+    SVOP (opcode, Sv, &'a Op<'a>),
     PADOP (opcode, Sv),
     PVOP (opcode/*, &'a pvop*/),
-    LOOP {opcode: opcode, sibling: &'a Op<'a> //, first: &'a Op<'a>, last: &'a Op<'a>, redoop: &'a Op<'a>, next: &'a Op<'a>, last: &'a Op<'a>
-    },
-    COP {opcode: opcode, sibling: &'a Op<'a>},
+    LOOP (opcode, &'a Op<'a> //, first: &'a Op<'a>, last: &'a Op<'a>, redoop: &'a Op<'a>, next: &'a Op<'a>, last: &'a Op<'a>
+    ),
+    COP (opcode, &'a Op<'a>),
     METHOP(opcode, Name),
     // {opcode: opcode, sibling: &'a Op<'a>, name: Name},
     #[cfg(perlapi_ver26)]
-    UNOP_AUX {opcode: opcode, first: &'a Op<'a>, sibling: &'a Op<'a>},
+    UNOP_AUX (opcode, &'a Op<'a>, &'a Op<'a>),
 }
 
 #[cfg(perlapi_ver26)]
@@ -70,58 +73,58 @@ impl<'a> OpExtractor<'a> {
                     if let Some(pl) = cv_padnamelist(cv);
                     if let Some(padname) = padnamelist_nth(pl, op.op_targ as usize);
                     then {
-                        Op::OP {
-                            opcode: oc, name: PadnamePV(padname), typ: PadnameTYPE(padname),
+                        Op::OP (
+                            oc,
+                            Some(PadNameType {
+                                name: PadnamePV(padname), typ: PadnameTYPE(padname)
+                            }),
                             sibling
-                        }
+                        )
                     } else {
-                        Op::OP {opcode: oc, name: None, typ: None, sibling}
+                        Op::OP (oc, None, sibling)
                     }
                 }
             },
             OPclass::OPclass_UNOP => {
                 let op = unsafe {(o as *const unop).as_ref()}.unwrap();
-                Op::UNOP {
-                    opcode: oc,
-                    first: self.extract(cv, op.op_first),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::UNOP (
+                    oc,
+                    self.extract(cv, op.op_first),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             OPclass::OPclass_BINOP => {
                 let op = unsafe {(o as *const binop).as_ref()}.unwrap();
-                Op::BINOP {
-                    opcode: oc,
-                    first: self.extract(cv, op.op_first),
-                    // last: self.extract(cv, op.op_last),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::BINOP (
+                    oc,
+                    self.extract(cv, op.op_first),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             OPclass::OPclass_LOGOP => {
                 let op = unsafe {(o as *const logop).as_ref()}.unwrap();
-                Op::LOGOP {
-                    opcode: oc,
-                    first: self.extract(cv, op.op_first),
-                    // other: self.extract(cv, op.op_other),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::LOGOP (
+                    oc,
+                    self.extract(cv, op.op_first),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             OPclass::OPclass_LISTOP => {
                 let op = unsafe {(o as *const listop).as_ref()}.unwrap();
-                Op::LISTOP {
-                    opcode: oc,
-                    first: self.extract(cv, op.op_first),
-                    // last: self.extract(cv, op.op_last),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::LISTOP (
+                    oc,
+                    self.extract(cv, op.op_first),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             // XXX
             OPclass::OPclass_PMOP => Op::PMOP {opcode: oc},
             OPclass::OPclass_SVOP => {
                 let sv = op_sv_or(o, |op| PAD_BASE_SV(CvPADLIST(cv), op.op_targ));
-                Op::SVOP {
-                    opcode: oc, sv: sv_extract(sv),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::SVOP (
+                    oc, sv_extract(sv),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             OPclass::OPclass_PADOP => {
                 let op = unsafe {(o as *const padop).as_ref()}.unwrap();
@@ -132,17 +135,17 @@ impl<'a> OpExtractor<'a> {
             OPclass::OPclass_PVOP => Op::PVOP (oc),
             // XXX
             OPclass::OPclass_LOOP => {
-                Op::LOOP {
-                    opcode: oc,
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::LOOP (
+                    oc,
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             OPclass::OPclass_COP => {
                 // let op = unsafe {(o as *const cop).as_ref()}.unwrap();
-                Op::COP {
-                    opcode: oc,
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::COP (
+                    oc,
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             },
             // XXX
             OPclass::OPclass_METHOP => {
@@ -157,11 +160,11 @@ impl<'a> OpExtractor<'a> {
             #[cfg(perlapi_ver26)]
             OPclass::OPclass_UNOP_AUX => {
                 let op = unsafe {(o as *const unop_aux).as_ref()}.unwrap();
-                Op::UNOP_AUX {
-                    opcode: oc,
-                    first: self.extract(cv, op.op_first),
-                    sibling: self.extract(cv, op_sibling(o as *const unop)),
-                }
+                Op::UNOP_AUX (
+                    oc,
+                    self.extract(cv, op.op_first),
+                    self.extract(cv, op_sibling(o as *const unop)),
+                )
             }
         };
         
