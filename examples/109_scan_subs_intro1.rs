@@ -15,32 +15,17 @@ use eg::{op1::*,sv0::*,cv0::*,stash_walker0::*};
 #[cfg(perlapi_ver26)]
 fn match_param_list(op: &Op) -> Vec<PadNameType> {
     let mut res: Vec<PadNameType> = Vec::new();
-    match op {
-        Op::UNOP(opcode::OP_NULL, _,
-                 Op::OP(opcode::OP_PUSHMARK, _, _, ref args_op), _) => {
-            let mut args_op = args_op;
-            loop {
-                match args_op {
-                    Op::OP(_, _, Some(arg), rest) => {
-                        res.push(arg.clone());
-                        match rest {
-                            Op::NULL => break,
-                            _ => {
-                                args_op = rest;
-                            }
-                        }
-                    }
-                    _ => {
-                        // NOP
-                    }
-                }
+    if let Op::UNOP(opcode::OP_NULL, _,
+                    Op::OP(opcode::OP_PUSHMARK, _, _, ref args_op), _) = op {
+        let mut args_op = args_op;
+        while let Op::OP(_, _, Some(arg), rest) = args_op {
+            res.push(arg.clone());
+            if let Op::NULL = rest {
+                break
             }
-        }
-        _ => {
-            //
+            args_op = rest;
         }
     }
-
     res
 }
 
