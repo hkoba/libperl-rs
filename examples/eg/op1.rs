@@ -18,19 +18,10 @@ pub struct OpExtractor<'a> {
     ops: Arena<Op<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PadNameType {
     name: Option<String>,
     typ: Option<String>,
-}
-
-impl Clone for PadNameType {
-    fn clone(&self) -> Self {
-        Self {
-            name: self.name.as_ref().map_or(None, |s| Some(s.clone())),
-            typ: self.typ.as_ref().map_or(None, |s| Some(s.clone())),
-        }
-    }
 }
 
 #[allow(non_camel_case_types)]
