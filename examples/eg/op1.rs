@@ -24,6 +24,15 @@ pub struct PadNameType {
     typ: Option<String>,
 }
 
+impl Clone for PadNameType {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.as_ref().map_or(None, |s| Some(s.clone())),
+            typ: self.typ.as_ref().map_or(None, |s| Some(s.clone())),
+        }
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug)]
 pub enum Op<'a> {

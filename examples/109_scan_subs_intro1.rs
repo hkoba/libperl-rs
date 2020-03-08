@@ -13,6 +13,38 @@ mod eg;
 use eg::{op1::*,sv0::*,cv0::*,stash_walker0::*};
 
 #[cfg(perlapi_ver26)]
+fn match_param_list(op: &Op) -> Vec<PadNameType> {
+    let mut res: Vec<PadNameType> = Vec::new();
+    match op {
+        Op::UNOP(opcode::OP_NULL, _,
+                 Op::OP(opcode::OP_PUSHMARK, _, _, ref args_op), _) => {
+            let mut args_op = args_op;
+            loop {
+                match args_op {
+                    Op::OP(_, _, Some(arg), rest) => {
+                        res.push(arg.clone());
+                        match rest {
+                            Op::NULL => break,
+                            _ => {
+                                args_op = rest;
+                            }
+                        }
+                    }
+                    _ => {
+                        // NOP
+                    }
+                }
+            }
+        }
+        _ => {
+            //
+        }
+    }
+
+    res
+}
+
+#[cfg(perlapi_ver26)]
 fn my_test() {
     let mut perl = Perl::new();
     perl.parse_env_args(env::args(), env::vars());
@@ -43,7 +75,8 @@ fn my_test() {
                                                              , _))
                                          , lvalue)
                               , _) if nm == "_" => {
-                        println!("first array assignment from @_, lvalue = {:#?}", lvalue);
+                        println!("first array assignment from @_, lvalue = {:?}"
+                                 , match_param_list(lvalue));
                         
                     }
                     _ => {
