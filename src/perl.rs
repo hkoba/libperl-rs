@@ -191,6 +191,18 @@ impl Perl {
         let name = CString::new(name).unwrap();
         unsafe {perl_api!{Perl_get_sv(self.my_perl, name.as_ptr(), flags)}}
     }
+    
+    pub fn str2svpv_flags(&self, buffer: &str, flags: u32) -> *mut SV {
+        let cstr = CString::new(buffer).unwrap();
+        unsafe {
+            perl_api!{Perl_newSVpvn_flags(
+                self.my_perl,
+                cstr.as_ptr(),
+                buffer.len(),
+                flags
+            )}
+        }
+    }
 }
 
 pub fn get_cvstash(cv: *const CV) -> *mut HV {
