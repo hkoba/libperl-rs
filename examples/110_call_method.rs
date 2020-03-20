@@ -1,9 +1,12 @@
 use std::env;
 use libperl_rs::*;
 use libperl_sys::*;
-
-use std::ffi::CString;
 use std::convert::TryInto;
+
+#[cfg(perlapi_ver26)]
+mod eg;
+#[cfg(perlapi_ver26)]
+use eg::sv0::*;
 
 #[cfg(perl_useithreads)]
 fn my_test() {
@@ -22,11 +25,14 @@ fn my_test() {
         "-e0",
     ], &[]);
     
-    call_method(&mut perl, class_name, method_name, method_args);
+    if let Ok(ary) = call_list_method(&mut perl, class_name, method_name, method_args) {
+        println!("Got result: {:?}", ary);
+    }
 }
 
 #[cfg(perl_useithreads)]
-fn call_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) {
+fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) -> Result<Vec<Sv>,String>
+{
 
     let mut my_perl = unsafe {perl.my_perl.as_mut().unwrap()};
 
@@ -58,26 +64,24 @@ fn call_method(perl: &mut Perl, class_name: String, method_name: String, args: V
     }
     
     // (... argument pushing ...)
-    // EXTEND(SP, 2+method_args.len())
+    // EXTEND(SP, 1+method_args.len())
     unsafe {
         sp = perl_api!{Perl_stack_grow(perl.my_perl, sp, sp, (1 + args.len()).try_into().unwrap())};
     }
     
     {
-        let len = class_name.len();
-        let cstr = CString::new(class_name).unwrap();
-        let dstr = unsafe {
-            perl_api!{Perl_newSVpvn_flags(
-                perl.my_perl,
-                cstr.as_ptr(),
-                len,
-                SVf_UTF8 | SVs_TEMP
-            )}
-        };
-        
+        let sv = perl.str2svpv_flags(class_name.as_str(), SVf_UTF8 | SVs_TEMP);
         unsafe {
             sp = sp.add(1);
-            *sp = dstr;
+            *sp = sv;
+        }
+    }
+
+    for s in args {
+        let sv = perl.str2svpv_flags(s.as_str(), SVf_UTF8 | SVs_TEMP);
+        unsafe {
+            sp = sp.add(1);
+            *sp = sv;
         }
     }
 
@@ -87,19 +91,43 @@ fn call_method(perl: &mut Perl, class_name: String, method_name: String, args: V
     // call_method
     unsafe {
         let nm = method_name.as_ptr() as *const i8;
-        perl_api!{Perl_call_method(perl.my_perl, nm, (G_METHOD_NAMED | G_DISCARD) as i32)}
+        perl_api!{Perl_call_method(perl.my_perl, nm, (G_METHOD_NAMED | G_ARRAY) as i32)}
     };
 
     // SPAGAIN
-    // PUTACK
+    // sp = my_perl.Istack_sp;
+    // (PUTBACK)
+
+    let res = stack_extract(&perl);
+
     // FREETMPS
+    if my_perl.Itmps_ix > my_perl.Itmps_floor {
+        unsafe {
+            perl_api!{Perl_free_tmps(perl.my_perl)}
+        }
+    }
     // LEAVE
     unsafe {
         perl_api!{Perl_pop_scope(perl.my_perl)};
     }
+    
+    Ok(res)
 }
 
+fn stack_extract(perl: &Perl) -> Vec<Sv> {
+    let mut res = Vec::new();
 
+    let mut src = unsafe {(*(perl.my_perl)).Istack_base.add(1)};
+    let last = unsafe {*(perl.my_perl)}.Istack_sp;
+
+    while src <= last {
+        let sv = unsafe {*src};
+        res.push(sv_extract(sv));
+        src = unsafe {src.add(1)}
+    }
+    
+    res
+}
 
 #[cfg(not(perl_useithreads))]
 fn my_test() {
