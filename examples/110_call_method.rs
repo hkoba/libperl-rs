@@ -30,6 +30,7 @@ fn my_test() {
     }
 }
 
+#[cfg(perlapi_ver26)]
 #[cfg(perl_useithreads)]
 fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) -> Result<Vec<Sv>,String>
 {
@@ -114,6 +115,8 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     Ok(res)
 }
 
+#[cfg(perlapi_ver26)]
+#[cfg(perl_useithreads)]
 fn stack_extract(perl: &Perl) -> Vec<Sv> {
     let mut res = Vec::new();
 
