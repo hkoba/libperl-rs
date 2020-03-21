@@ -23,6 +23,23 @@ macro_rules! perl_api {
     }
 }
 
+#[cfg(perl_useithreads)]
+#[macro_export]
+macro_rules! unsafe_perl_api {
+    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
+        unsafe {$name($my_perl, $($arg),*) $(as $t)*}
+    }
+}
+
+#[cfg(not(perl_useithreads))]
+#[macro_export]
+macro_rules! unsafe_perl_api {
+    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
+        unsafe {$name($($arg),*) $(as $t)*}
+    }
+}
+
+
 pub struct Perl {
     debug: bool,
     args: Vec<CString>,
