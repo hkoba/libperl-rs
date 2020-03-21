@@ -221,9 +221,13 @@ impl Perl {
                 self.my_perl,
                 cstr.as_ptr(),
                 buffer.len(),
-                flags
+                SVf_UTF8 | flags
             )}
         }
+    }
+
+    pub fn str2svpv_mortal(&self, buffer: &str) -> *mut SV {
+        self.str2svpv_flags(buffer, SVs_TEMP)
     }
 }
 
