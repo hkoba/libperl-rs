@@ -44,23 +44,17 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     let mut sp = my_perl.Istack_sp;
 
     // ENTER
-    unsafe {
-        perl_api!{Perl_push_scope(perl.my_perl)}
-    };
+    unsafe_perl_api!{Perl_push_scope(perl.my_perl)};
 
     // SAVETMPS
-    unsafe {
-        perl_api!{Perl_savetmps(perl.my_perl)}
-    };
+    unsafe_perl_api!{Perl_savetmps(perl.my_perl)};
 
     // PUSHMARK(SP)
     unsafe {
         my_perl.Imarkstack_ptr = my_perl.Imarkstack_ptr.add(1)
     };
     if my_perl.Imarkstack_ptr == my_perl.Imarkstack_max {
-        unsafe {
-            perl_api!{Perl_markstack_grow(perl.my_perl)}
-        };
+        unsafe_perl_api!{Perl_markstack_grow(perl.my_perl)};
     }
     unsafe {
         *(my_perl.Imarkstack_ptr)
@@ -69,9 +63,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     
     // (... argument pushing ...)
     // EXTEND(SP, 1+method_args.len())
-    unsafe {
-        sp = perl_api!{Perl_stack_grow(perl.my_perl, sp, sp, (1 + args.len()).try_into().unwrap())};
-    }
+    sp = unsafe_perl_api!{Perl_stack_grow(perl.my_perl, sp, sp, (1 + args.len()).try_into().unwrap())};
     
     for s in [&[class_name], args.as_slice()].concat() {
         let sv = perl.str2svpv_flags(s.as_str(), SVf_UTF8 | SVs_TEMP);
@@ -85,11 +77,8 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     my_perl.Istack_sp = sp;
 
     // call_method
-    unsafe {
-        let nm = method_name.as_ptr() as *const i8;
-        perl_api!{Perl_call_method(perl.my_perl, nm, (G_METHOD_NAMED | G_ARRAY) as i32)}
-    };
-
+    unsafe_perl_api!{Perl_call_method(perl.my_perl, method_name.as_ptr() as *const i8, (G_METHOD_NAMED | G_ARRAY) as i32)};
+    
     // SPAGAIN
     // sp = my_perl.Istack_sp;
     // (PUTBACK)
@@ -98,14 +87,10 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
 
     // FREETMPS
     if my_perl.Itmps_ix > my_perl.Itmps_floor {
-        unsafe {
-            perl_api!{Perl_free_tmps(perl.my_perl)}
-        }
+        unsafe_perl_api!{Perl_free_tmps(perl.my_perl)}
     }
     // LEAVE
-    unsafe {
-        perl_api!{Perl_pop_scope(perl.my_perl)};
-    }
+    unsafe_perl_api!{Perl_pop_scope(perl.my_perl)};
     
     Ok(res)
 }
