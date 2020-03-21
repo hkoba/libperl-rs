@@ -23,10 +23,10 @@ pub enum Sv {
         ivuv: Option<IVUV>,
         nv: Option<f64>,
         pv: Option<String>,
-        rv: Option<Box<Sv>>,
         /*special: OptionCore<),*/
         sv: *const libperl_sys::sv,
     },
+    REF(Box<Sv>),
     REGEXP(*const libperl_sys::REGEXP),
     GLOB {
         gv: *const libperl_sys::gv,
@@ -70,12 +70,14 @@ pub fn sv_extract/*<'a>*/(sv: *const libperl_sys::sv) -> Sv/*<'a>*/ {
 fn sv_extract_scalar(sv: *const libperl_sys::sv) -> Sv {
     let svt = SvTYPE(sv);
     if (svt as u32) < (svtype::SVt_PVAV as u32) {
+        if let Some(rv) = SvRV(sv) {
+            return Sv::REF(Box::new(sv_extract(rv)))
+        }
         let ivuv = sv_extract_ivuv(sv);
         let nv = sv_extract_nv(sv);
         let pv = sv_extract_pv(sv);
-        let rv = SvRV(sv).map(|r| Box::new(sv_extract(r)));
         Sv::SCALAR {
-            svtype: svt, sv, ivuv, nv, rv, pv
+            svtype: svt, sv, ivuv, nv, pv
         }
     } else {
         Sv::NIMPL(svt, sv)
