@@ -1,14 +1,18 @@
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 use std::env;
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 use libperl_rs::*;
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 use libperl_sys::*;
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 use std::convert::TryInto;
 
-#[cfg(perlapi_ver26)]
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 mod eg;
-#[cfg(perlapi_ver26)]
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 use eg::sv0::*;
 
-#[cfg(perl_useithreads)]
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 fn my_test() {
     
     let mut args = env::args().skip(1);
@@ -30,8 +34,7 @@ fn my_test() {
     }
 }
 
-#[cfg(perlapi_ver26)]
-#[cfg(perl_useithreads)]
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) -> Result<Vec<Sv>,String>
 {
 
@@ -115,8 +118,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     Ok(res)
 }
 
-#[cfg(perlapi_ver26)]
-#[cfg(perl_useithreads)]
+#[cfg(all(perl_useithreads,perlapi_ver26))]
 fn stack_extract(perl: &Perl) -> Vec<Sv> {
     let mut res = Vec::new();
 
@@ -132,7 +134,7 @@ fn stack_extract(perl: &Perl) -> Vec<Sv> {
     res
 }
 
-#[cfg(not(perl_useithreads))]
+#[cfg(not(all(perl_useithreads,perlapi_ver26)))]
 fn my_test() {
 }
 
