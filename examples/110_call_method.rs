@@ -73,15 +73,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
         sp = perl_api!{Perl_stack_grow(perl.my_perl, sp, sp, (1 + args.len()).try_into().unwrap())};
     }
     
-    {
-        let sv = perl.str2svpv_flags(class_name.as_str(), SVf_UTF8 | SVs_TEMP);
-        unsafe {
-            sp = sp.add(1);
-            *sp = sv;
-        }
-    }
-
-    for s in args {
+    for s in [&[class_name], args.as_slice()].concat() {
         let sv = perl.str2svpv_flags(s.as_str(), SVf_UTF8 | SVs_TEMP);
         unsafe {
             sp = sp.add(1);
