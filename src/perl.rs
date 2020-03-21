@@ -108,6 +108,11 @@ impl Perl {
         }
     }
 
+    #[cfg(perl_useithreads)]
+    pub fn my_perl(&self) -> &mut PerlInterpreter {
+        unsafe {self.my_perl.as_mut().unwrap()}
+    }
+
     pub fn parse(&mut self, args: &[&str], envp: &[&str]) -> i32 {
         self.args = args.iter().map(|&arg| CString::new(arg).unwrap())
             .collect::<Vec<CString>>();
