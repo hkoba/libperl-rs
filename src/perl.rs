@@ -254,6 +254,17 @@ impl Perl {
     }
 }
 
+#[macro_export]
+macro_rules! sp_push {
+    ($sp:ident, $sv_expr:expr) => {
+        let sv = $sv_expr;
+        unsafe {
+            $sp = $sp.add(1);
+            *$sp = sv;
+        }
+    }
+}
+
 pub fn get_cvstash(cv: *const CV) -> *mut HV {
     let xpvcv = unsafe {*cv}.sv_any;
     unsafe {*xpvcv}.xcv_stash
