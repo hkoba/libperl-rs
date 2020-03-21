@@ -29,8 +29,15 @@ fn my_test() {
         "-e0",
     ], &[]);
     
-    if let Ok(ary) = call_list_method(&mut perl, class_name, method_name, method_args) {
-        println!("Got result: {:?}", ary);
+    match call_list_method(&mut perl, class_name, method_name, method_args) {
+        Ok(ary) => {
+            for item in ary {
+                println!("{:?}", item);
+            }
+        }
+        Err(e) => {
+            println!("ERROR: {:?}", e);
+        }
     }
 }
 
