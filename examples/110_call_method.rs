@@ -50,16 +50,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     unsafe_perl_api!{Perl_savetmps(perl.my_perl)};
 
     // PUSHMARK(SP)
-    unsafe {
-        my_perl.Imarkstack_ptr = my_perl.Imarkstack_ptr.add(1)
-    };
-    if my_perl.Imarkstack_ptr == my_perl.Imarkstack_max {
-        unsafe_perl_api!{Perl_markstack_grow(perl.my_perl)};
-    }
-    unsafe {
-        *(my_perl.Imarkstack_ptr)
-            = (sp as usize - my_perl.Istack_base as usize) as i32;
-    }
+    perl.pushmark(sp);
     
     // (... argument pushing ...)
     // EXTEND(SP, 1+method_args.len())
@@ -86,9 +77,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     let res = stack_extract(&perl);
 
     // FREETMPS
-    if my_perl.Itmps_ix > my_perl.Itmps_floor {
-        unsafe_perl_api!{Perl_free_tmps(perl.my_perl)}
-    }
+    perl.free_tmps();
     // LEAVE
     unsafe_perl_api!{Perl_pop_scope(perl.my_perl)};
     

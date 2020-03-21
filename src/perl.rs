@@ -229,6 +229,29 @@ impl Perl {
     pub fn str2svpv_mortal(&self, buffer: &str) -> *mut SV {
         self.str2svpv_flags(buffer, SVs_TEMP)
     }
+    
+    #[cfg(perl_useithreads)]
+    pub fn pushmark(&self, sp: *mut *mut SV) {
+        let mut my_perl = self.my_perl();
+        unsafe {
+            my_perl.Imarkstack_ptr = my_perl.Imarkstack_ptr.add(1)
+        };
+        if my_perl.Imarkstack_ptr == my_perl.Imarkstack_max {
+            unsafe_perl_api!{Perl_markstack_grow(my_perl)};
+        }
+        unsafe {
+            *(my_perl.Imarkstack_ptr)
+                = (sp as usize - my_perl.Istack_base as usize) as i32;
+        }
+    }
+    
+    #[cfg(perl_useithreads)]
+    pub fn free_tmps(&self) {
+        let my_perl = self.my_perl();
+        if my_perl.Itmps_ix > my_perl.Itmps_floor {
+            unsafe_perl_api!{Perl_free_tmps(self.my_perl)}
+        }
+    }
 }
 
 pub fn get_cvstash(cv: *const CV) -> *mut HV {
