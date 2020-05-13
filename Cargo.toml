@@ -3,7 +3,7 @@ name = "libperl-rs"
 version = "0.2.0"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2018"
-description = "Run perl5 code in Rust"
+description = "Embed perl5 runtime in Rust"
 
 repository = "https://github.com/hkoba/libperl-rs.git"
 
