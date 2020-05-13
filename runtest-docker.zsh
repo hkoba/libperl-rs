@@ -48,6 +48,16 @@ fi
 
 #========================================
 
+docker=(docker)
+if [[ -r /etc/os-release ]]; then
+    source /etc/os-release
+    if [[ $ID == "fedora" ]] && ((VERSION_ID >= 31)); then
+        docker=(podman --cgroup-manager=systemd)
+    fi
+fi
+
+#========================================
+
 cmdList=(
     'apt update'
     'apt install -y llvm-dev libclang-dev clang'
@@ -73,7 +83,7 @@ else
 fi
 
 
-x exec docker run --rm -it \
+x exec $docker run --rm -it \
      -v $topDir:/app${SELINUX} \
      $volOpts \
      $imageName /bin/bash -c "${(j/&&/)cmdList}"
