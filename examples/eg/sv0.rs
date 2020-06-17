@@ -14,6 +14,15 @@ impl<'a> std::fmt::Debug for VarName<'a> {
     }
 }
 
+struct SvtypeWrap(svtype);
+
+impl std::fmt::Debug for SvtypeWrap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("svtype::")?;
+        self.0.fmt(f)
+    }
+}
+
 #[derive(Debug)]
 pub enum IVUV {
     IV(isize),
@@ -52,7 +61,7 @@ impl std::fmt::Debug for Sv {
         match &self {
             Sv::SCALAR {svtype, ref ivuv, nv, pv, sv: _} => {
                 f.debug_struct("Sv::SCALAR")
-                    .field("svtype", svtype)
+                    .field("svtype", &SvtypeWrap(*svtype))
                     .field("ivuv", ivuv)
                     .field("nv", nv)
                     .field("pv", pv)
