@@ -24,8 +24,15 @@ pub struct PadNameType {
     typ: Option<String>,
 }
 
+struct VarName<'a> (&'a str);
+
+impl<'a> std::fmt::Debug for VarName<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
 pub enum Op<'a> {
     NULL,
     OP (opcode, *const op, Option<PadNameType>, &'a Op<'a>),
@@ -45,6 +52,103 @@ pub enum Op<'a> {
     // {opcode: opcode, sibling: &'a Op<'a>, name: Name},
     #[cfg(perlapi_ver26)]
     UNOP_AUX (opcode, &'a Op<'a>, &'a Op<'a>),
+}
+
+impl<'a> std::fmt::Debug for  Op<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Op::NULL => { f.debug_tuple("Op::NULL").finish() },
+            Op::OP(oc, _, padname, sibling) => {
+                f.debug_tuple("Op::OP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&padname)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::UNOP(oc, _, first, sibling) => {
+                f.debug_tuple("Op::UNOP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&first)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::BINOP(oc, _, first, sibling) => {
+                f.debug_tuple("Op::BINOP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&first)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::LOGOP(oc, _, first, sibling) => {
+                f.debug_tuple("Op::LOGOP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&first)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::LISTOP(oc, _, first, sibling) => {
+                f.debug_tuple("Op::LISTOP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&first)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::PMOP {opcode: oc} => {
+                f.debug_struct("Op::PMOP")
+                    .field("opcode", oc)
+                    // XXX
+                    .finish()
+            },
+            Op::SVOP(oc, sv, sibling) => {
+                f.debug_tuple("Op::SVOP")
+                    .field(oc)
+                    .field(&sv)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::PADOP(oc, _, sibling) => {
+                f.debug_tuple("Op::PADOP")
+                    .field(oc)
+                    .field(&VarName("_op"))
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::PVOP(oc) => {
+                f.debug_tuple("Op::PVOP")
+                    .finish()
+            },
+            Op::LOOP(oc, sibling) => {
+                f.debug_tuple("Op::LOOP")
+                    .field(oc)
+                    .field(&sibling)
+                    .finish()
+            },
+            Op::COP(oc, sibling) => {
+                f.debug_tuple("Op::COP")
+                    .field(oc)
+                    .field(sibling)
+                    .finish()
+            },
+            Op::METHOP(oc, name) => {
+                f.debug_tuple("Op::METHOP")
+                    .field(oc)
+                    .field(&name)
+                    .finish()
+            },
+            Op::UNOP_AUX(oc, first, sibling) => {
+                f.debug_tuple("Op::UNOP_AUX")
+                    .field(oc)
+                    .field(&first)
+                    .field(&sibling)
+                    .finish()
+            },
+        }
+    }
 }
 
 #[cfg(perlapi_ver26)]
