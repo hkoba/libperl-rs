@@ -23,10 +23,22 @@ impl std::fmt::Debug for SvtypeWrap {
     }
 }
 
-#[derive(Debug)]
 pub enum IVUV {
     IV(isize),
     UV(usize),
+}
+
+impl std::fmt::Debug for IVUV {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            IVUV::IV(v) => {
+                f.debug_tuple("IVUV::IV").field(v).finish()
+            },
+            IVUV::UV(v) => {
+                f.debug_tuple("IVUV::UV").field(v).finish()
+            },
+        }
+    }
 }
 
 // pub enum Immortal {
