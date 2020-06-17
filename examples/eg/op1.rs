@@ -24,19 +24,11 @@ pub struct PadNameType {
     typ: Option<String>,
 }
 
-struct VarName<'a> (&'a str);
-
-impl<'a> std::fmt::Debug for VarName<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
 struct OpcodeWrap<'a> (&'a opcode);
 
 impl<'a> std::fmt::Debug for OpcodeWrap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("opcode::");
+        f.write_str("opcode::")?;
         self.0.fmt(f)
     }
 }
@@ -129,6 +121,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::PVOP(oc) => {
                 f.debug_tuple("Op::PVOP")
+                    .field(&OpcodeWrap(oc))
                     .finish()
             },
             Op::LOOP(oc, sibling) => {
