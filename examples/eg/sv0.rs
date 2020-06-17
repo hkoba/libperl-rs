@@ -6,6 +6,14 @@ use super::gv0::*;
 use super::hek0::*;
 use super::hv0::*;
 
+pub struct VarName<'a> (pub &'a str);
+
+impl<'a> std::fmt::Debug for VarName<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 #[derive(Debug)]
 pub enum IVUV {
     IV(isize),

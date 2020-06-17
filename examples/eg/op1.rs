@@ -6,7 +6,7 @@ use if_chain::if_chain;
 use libperl_sys::*;
 use libperl_rs::Perl;
 
-use super::sv0::{Sv, sv_extract};
+use super::sv0::{Sv, VarName, sv_extract};
 use super::pad0::*;
 use super::op0::{op_sibling, op_sv_or, Name};
 pub use super::op0::op_name;
