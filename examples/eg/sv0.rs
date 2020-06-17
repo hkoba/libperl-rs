@@ -90,7 +90,11 @@ impl std::fmt::Debug for Sv {
                 f.debug_struct("Sv::GLOB")
                     .field("gv", &VarName("_"))
                     .field("name", name)
-                    .field("stash", stash)
+                    .field("stash", &(match &stash.0 {
+                        Some(s) => Some(s),
+                        None => None,
+                    },
+                                     &VarName("_")))
                     .field("gp", &VarName("_"))
                     .finish()
             },
