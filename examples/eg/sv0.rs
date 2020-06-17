@@ -24,7 +24,6 @@ pub enum IVUV {
 //     UNDEF, NO, YES, ZERO, PLACEHOLDER,
 // }
 
-#[derive(Debug)]
 pub enum Sv {
     SCALAR {
         svtype: svtype,
@@ -46,6 +45,51 @@ pub enum Sv {
     HASH(*const libperl_sys::hv),
     CODE(*const libperl_sys::cv),
     NIMPL(svtype, *const libperl_sys::sv),
+}
+
+impl std::fmt::Debug for Sv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Sv::SCALAR {svtype, ref ivuv, nv, pv, sv: _} => {
+                f.debug_struct("Sv::SCALAR")
+                    .field("svtype", svtype)
+                    .field("ivuv", ivuv)
+                    .field("nv", nv)
+                    .field("pv", pv)
+                    .field("sv", &VarName("_"))
+                    .finish()
+            },
+            Sv::REF(_) => {
+                f.debug_tuple("Sv::REF").field(&VarName("_")).finish()
+            },
+            Sv::REGEXP(_) => {
+                f.debug_tuple("Sv::REGEXP").field(&VarName("_")).finish()
+            },
+            Sv::GLOB {ref name, ref stash, ..} => {
+                f.debug_struct("Sv::GLOB")
+                    .field("gv", &VarName("_"))
+                    .field("name", name)
+                    .field("stash", stash)
+                    .field("gp", &VarName("_"))
+                    .finish()
+            },
+            Sv::ARRAY(_) => {
+                f.debug_tuple("Sv::ARRAY").field(&VarName("_")).finish()
+            },
+            Sv::HASH(_) => {
+                f.debug_tuple("Sv::HASH").field(&VarName("_")).finish()
+            },
+            Sv::CODE(_) => {
+                f.debug_tuple("Sv::CODE").field(&VarName("_")).finish()
+            },
+            Sv::NIMPL(typ, _sv) => {
+                f.debug_tuple("Sv::NIMPL")
+                    .field(&typ)
+                    .field(&VarName("_"))
+                    .finish()
+            },
+        }
+    }
 }
 
 pub fn sv_extract/*<'a>*/(sv: *const libperl_sys::sv) -> Sv/*<'a>*/ {
