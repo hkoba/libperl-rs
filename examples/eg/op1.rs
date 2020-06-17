@@ -70,7 +70,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::OP(oc, _, padname, sibling) => {
                 f.debug_tuple("Op::OP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&padname)
                     .field(&sibling)
                     .finish()
@@ -78,7 +78,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::UNOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::UNOP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&first)
                     .field(&sibling)
                     .finish()
@@ -86,7 +86,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::BINOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::BINOP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&first)
                     .field(&sibling)
                     .finish()
@@ -94,7 +94,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::LOGOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::LOGOP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&first)
                     .field(&sibling)
                     .finish()
@@ -102,7 +102,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::LISTOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::LISTOP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&first)
                     .field(&sibling)
                     .finish()
@@ -123,7 +123,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::PADOP(oc, _, sibling) => {
                 f.debug_tuple("Op::PADOP")
                     .field(&OpcodeWrap(oc))
-                    .field(&VarName("_op"))
+                    .field(&VarName("_"))
                     .field(&sibling)
                     .finish()
             },
