@@ -24,6 +24,7 @@ impl std::fmt::Debug for SvtypeWrap {
 }
 
 pub enum IVUV {
+    NONE,
     IV(isize),
     UV(usize),
 }
@@ -31,6 +32,9 @@ pub enum IVUV {
 impl std::fmt::Debug for IVUV {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
+            IVUV::NONE => {
+                f.debug_tuple("IVUV::NONE").finish()
+            },
             IVUV::IV(v) => {
                 f.debug_tuple("IVUV::IV").field(v).finish()
             },
@@ -48,7 +52,7 @@ impl std::fmt::Debug for IVUV {
 pub enum Sv {
     SCALAR {
         svtype: svtype,
-        ivuv: Option<IVUV>,
+        ivuv: IVUV,
         nv: Option<f64>,
         pv: Option<String>,
         /*special: OptionCore<),*/
@@ -207,16 +211,16 @@ pub fn isREGEXP(sv: *const libperl_sys::sv) -> bool {
     }
 }
 
-fn sv_extract_ivuv(sv: *const libperl_sys::sv) -> Option<IVUV> {
+fn sv_extract_ivuv(sv: *const libperl_sys::sv) -> IVUV {
     use libperl_sys::SVf_IVisUV;
     if !sv_has_ivuv(sv) {
-        None
+        IVUV::NONE
     } else if (SvFLAGS(sv) & SVf_IVisUV) != 0  {
         let xpvuv = (unsafe {(*sv).sv_any}) as *const libperl_sys::xpvuv;
-        Some(IVUV::UV((unsafe {(*xpvuv).xuv_u.xivu_uv}) as usize))
+        IVUV::UV((unsafe {(*xpvuv).xuv_u.xivu_uv}) as usize)
     } else {
         let xpviv = (unsafe {(*sv).sv_any}) as *const libperl_sys::xpviv;
-        Some(IVUV::IV((unsafe {(*xpviv).xiv_u.xivu_iv}) as isize))
+        IVUV::IV((unsafe {(*xpviv).xiv_u.xivu_iv}) as isize)
     }
 }
 
