@@ -30,6 +30,13 @@ fn my_test() {
     let mut nswalker = StashWalker::new(&perl, Some(&filter), &mut emitter);
 
     nswalker.walk("");
+    
+    let main_cv = perl.get_main_cv();
+
+    println!("#main_cv");
+    // XXX: CvROOT(main_cv) doesn't work here.
+    println!("{:#?}", op_extractor.extract(main_cv, perl.get_main_root()));
+    println!("");
 }
 
 #[cfg(not(perlapi_ver26))]
