@@ -149,6 +149,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
                     .field(&name)
                     .finish()
             },
+            #[cfg(perlapi_ver26)]
             Op::UNOP_AUX(oc, first, sibling) => {
                 f.debug_tuple("Op::UNOP_AUX")
                     .field(&OpcodeWrap(oc))
