@@ -32,6 +32,15 @@ impl<'a> std::fmt::Debug for VarName<'a> {
     }
 }
 
+struct OpcodeWrap<'a> (&'a opcode);
+
+impl<'a> std::fmt::Debug for OpcodeWrap<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("opcode::");
+        self.0.fmt(f)
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub enum Op<'a> {
     NULL,
@@ -60,7 +69,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             Op::NULL => { f.debug_tuple("Op::NULL").finish() },
             Op::OP(oc, _, padname, sibling) => {
                 f.debug_tuple("Op::OP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&padname)
                     .field(&sibling)
@@ -68,7 +77,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::UNOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::UNOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&first)
                     .field(&sibling)
@@ -76,7 +85,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::BINOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::BINOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&first)
                     .field(&sibling)
@@ -84,7 +93,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::LOGOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::LOGOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&first)
                     .field(&sibling)
@@ -92,7 +101,7 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::LISTOP(oc, _, first, sibling) => {
                 f.debug_tuple("Op::LISTOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&first)
                     .field(&sibling)
@@ -100,20 +109,20 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::PMOP {opcode: oc} => {
                 f.debug_struct("Op::PMOP")
-                    .field("opcode", oc)
+                    .field("opcode", &OpcodeWrap(oc))
                     // XXX
                     .finish()
             },
             Op::SVOP(oc, sv, sibling) => {
                 f.debug_tuple("Op::SVOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&sv)
                     .field(&sibling)
                     .finish()
             },
             Op::PADOP(oc, _, sibling) => {
                 f.debug_tuple("Op::PADOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&VarName("_op"))
                     .field(&sibling)
                     .finish()
@@ -124,25 +133,25 @@ impl<'a> std::fmt::Debug for  Op<'a> {
             },
             Op::LOOP(oc, sibling) => {
                 f.debug_tuple("Op::LOOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&sibling)
                     .finish()
             },
             Op::COP(oc, sibling) => {
                 f.debug_tuple("Op::COP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(sibling)
                     .finish()
             },
             Op::METHOP(oc, name) => {
                 f.debug_tuple("Op::METHOP")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&name)
                     .finish()
             },
             Op::UNOP_AUX(oc, first, sibling) => {
                 f.debug_tuple("Op::UNOP_AUX")
-                    .field(oc)
+                    .field(&OpcodeWrap(oc))
                     .field(&first)
                     .field(&sibling)
                     .finish()
