@@ -252,7 +252,7 @@ fn sv_has_nv(sv: *const libperl_sys::sv) -> bool {
             => // XXX: !isGV_with_GP(sv) && !SvVALID(sv))
             false,
         _ => false,
-    }    
+    }
 }
 
 pub fn SvTYPE(sv: *const libperl_sys::sv) -> svtype {

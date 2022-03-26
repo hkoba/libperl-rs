@@ -68,7 +68,7 @@ fn stash_subs(perl: &Perl, pack: &str, seen: &mut Seen) {
         // ref (\$main::{foo}) eq 'GLOB'
         else if let Sv::GLOB {gv, ..} = sv_extract(item) {
             let cv = GvCV(gv);
-            if let Some(file) = CvFILE(cv) {
+            if let Some(_file) = CvFILE(cv) {
                 emitter(&name, cv);
             }
             if name.ends_with("::") {

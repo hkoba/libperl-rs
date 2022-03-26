@@ -168,7 +168,7 @@ impl<'a> OpExtractor<'a> {
         let cls = self.perl.op_class(o);
         let oc = unsafe {
             let ty = (*o).op_type();
-            *(&ty as *const u32 as *const opcode)
+            *(&ty as *const u16 as *const opcode)
         };
 
         let eo = match cls {
