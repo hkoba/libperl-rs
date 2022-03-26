@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Prepare
+      run: apt update && apt install -y llvm-dev libclang-dev clang && curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && sh ./rustup.sh -y
     - name: Build
       run: cargo build --verbose
     - name: Run tests
