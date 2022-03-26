@@ -30,10 +30,6 @@ jobs:
     strategy:
       matrix:
         perl-version:
-          - '5.10'
-          - '5.10-threaded'
-          - '5.16'
-          - '5.16-threaded'
           - '5.30'
           - '5.30-threaded'
           - '5.32'
