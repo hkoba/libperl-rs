@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: apt-get install -y llvm-dev libclang-dev clang
+      run: apt-get update && apt-get install -y llvm-dev libclang-dev clang
     - name: Install ${{ matrix.rust-version }}
       uses: actions-rs/toolchain@v1
       with:
