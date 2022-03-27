@@ -1,4 +1,8 @@
 #![allow(non_snake_case)]
+
+#[cfg(perlapi_ver26)]
+use std::convert::TryFrom;
+
 pub use libperl_sys::op;
 
 use if_chain::if_chain;
@@ -166,11 +170,7 @@ impl<'a> OpExtractor<'a> {
             return self.ops.alloc(Op::NULL)
         }
         let cls = self.perl.op_class(o);
-        let oc = unsafe {
-            let ty = (*o).op_type();
-            *(&ty as *const u16 as *const opcode)
-        };
-
+        let oc = opcode::try_from(o).unwrap();
         let eo = match cls {
             OPclass::OPclass_NULL => Op::NULL,
             OPclass::OPclass_BASEOP => {

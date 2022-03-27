@@ -1,6 +1,8 @@
 pub mod perl_core;
 pub use perl_core::*;
 
+pub mod conv_opcode;
+
 use std::ffi::CStr;
 
 // use std::os::raw::{c_char, c_int /*, c_void, c_schar*/};
