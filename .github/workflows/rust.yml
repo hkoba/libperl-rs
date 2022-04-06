@@ -1,0 +1,53 @@
+name: Rust
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: apt-get update && apt-get install -y llvm-dev libclang-dev clang
+    - name: Install ${{ matrix.rust-version }}
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: ${{ matrix.rust-version }}-${{ matrix.target.triple }}
+          profile: minimal
+          override: true
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --all --examples
+      
+    strategy:
+      matrix:
+        threaded:
+          - ''
+          - '-threaded'
+        perl-version:
+          - '5.26'
+          - '5.28'
+          - '5.30'
+          - '5.32'
+          - '5.34'
+          - '5'
+        rust-version:
+          - 1.54.0 # MSRV
+          - stable
+        target:
+          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
+
+    container:
+      image: perl:${{ matrix.perl-version }}${{ matrix.threaded }}
+
+      

@@ -1,4 +1,8 @@
 #![allow(non_snake_case)]
+
+#[cfg(perlapi_ver26)]
+use std::convert::TryFrom;
+
 pub use libperl_sys::op;
 
 use libperl_sys::*;
@@ -36,10 +40,7 @@ pub enum Name {
 #[cfg(perlapi_ver26)]
 pub fn op_extract(perl: &Perl, cv: *const cv, o: *const op) -> Op {
     let cls = perl.op_class(o);
-    let oc = unsafe {
-        let ty = (*o).op_type();
-        *(&ty as *const u16 as *const opcode)
-    };
+    let oc = opcode::try_from(o).unwrap();
     match cls {
         OPclass::OPclass_NULL => Op::NULL,
         OPclass::OPclass_BASEOP => {
@@ -148,7 +149,7 @@ impl Iterator for OpSiblingIter {
 pub fn op_sibling(op: *const unop) -> *const op {
     // PERL_OP_PARENT is on since 5.26
     if let Some(op) = unsafe {op.as_ref()} {
-        if op.op_moresib() == 1 as u16 {
+        if u32::try_from(op.op_moresib()).unwrap() == 1 as u32 {
             op.op_sibparent
         } else {
             std::ptr::null()
