@@ -31,14 +31,14 @@ jobs:
       
     strategy:
       matrix:
+        threaded:
+          - ''
+          - '-threaded'
         perl-version:
           - '5.30'
-          - '5.30-threaded'
           - '5.32'
-          - '5.32-threaded'
           - '5.34'
-          - '5.34-threaded'
-          - 'latest'
+          - '5'
         rust-version:
           - 1.54.0 # MSRV
           - stable
@@ -46,6 +46,6 @@ jobs:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
 
     container:
-      image: perl:${{ matrix.perl-version }}
+      image: perl:${{ matrix.perl-version }}${{ matrix.threaded }}
 
       
