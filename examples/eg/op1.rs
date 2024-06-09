@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(unused_imports)]
 
 #[cfg(perlapi_ver26)]
 use std::convert::TryFrom;

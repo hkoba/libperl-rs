@@ -45,7 +45,7 @@ fn my_test() {
 fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) -> Result<Vec<Sv>,String>
 {
 
-    let mut my_perl = perl.my_perl();
+    let my_perl = perl.my_perl();
 
     // dSP
     let mut sp = my_perl.Istack_sp;
@@ -71,7 +71,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     my_perl.Istack_sp = sp;
 
     // call_method
-    let cnt = unsafe_perl_api!{Perl_call_method(perl.my_perl, method_name.as_ptr() as *const i8, (G_METHOD_NAMED | G_ARRAY) as i32)};
+    let cnt = unsafe_perl_api!{Perl_call_method(perl.my_perl, method_name.as_ptr() as *const i8, (G_METHOD_NAMED | G_LIST) as i32)};
     
     // SPAGAIN
     // sp = my_perl.Istack_sp;

@@ -32,12 +32,16 @@ fn main() {
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
 
+    let archlib = String::from(&perl.dict["archlib"]);
+    let perl_h = Path::new(&archlib).join("CORE/perl.h");
+    let cop_h = Path::new(&archlib).join("CORE/cop.h");
+
     let ccopts = perl.read_ccopts().unwrap();
     println!("# perl ccopts = {:?}, ", ccopts);
 
     perl.emit_features(&["useithreads"]); // "usemultiplicity"
 
-    perl.emit_perlapi_vers(10, 34);
+    perl.emit_perlapi_vers(10, 38);
 
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
@@ -72,10 +76,9 @@ fn main() {
         // the resulting bindings.
         let bindings = bindgen::Builder::default()
 
-            .rustfmt_bindings(true)
             .derive_debug(true)
             .impl_debug(true)
-
+            .formatter(bindgen::Formatter::Prettyplease)
             .rustified_enum("OPclass|opcode|svtype")
 
         // The input header we would like to generate
@@ -87,24 +90,13 @@ fn main() {
 
             .opaque_type("timex")
 
-            .blacklist_type("max_align_t")
-
-            .blacklist_item("IPPORT_RESERVED")
-
-            .blacklist_item("FP_.*")
-        // .blacklist_item("FP_INT_UPWARD")
-        // .blacklist_item("FP_INT_DOWNWARD")
-        // .blacklist_item("FP_INT_TOWARDZERO")
-        // .blacklist_item("FP_INT_TONEARESTFROMZERO")
-        // .blacklist_item("FP_INT_TONEAREST")
-        // .blacklist_item("FP_NAN")
-        // .blacklist_item("FP_INFINITE")
-        // .blacklist_item("FP_ZERO")
-        // .blacklist_item("FP_SUBNORMAL")
-        // .blacklist_item("FP_NORMAL")
-
-            .blacklist_function("f?printf")
-            .blacklist_function("f?scanf")
+            .allowlist_file(perl_h.to_str().unwrap())
+            .allowlist_file(cop_h.to_str().unwrap())
+            .allowlist_item("opcode")
+            .allowlist_item("(Perl|perl|PL)_.*")
+            .allowlist_item("([SAHRGC]V|xpv).*")
+            .allowlist_item("OP.*")
+            .allowlist_item("G_.*")
 
         // Finish the builder and generate the bindings.
             .generate()
