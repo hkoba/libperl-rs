@@ -37,7 +37,7 @@ fn main() {
 
     perl.emit_features(&["useithreads"]); // "usemultiplicity"
 
-    perl.emit_perlapi_vers(10, 34);
+    perl.emit_perlapi_vers(10, 38);
 
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
