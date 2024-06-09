@@ -45,7 +45,7 @@ fn my_test() {
 fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, args: Vec<String>) -> Result<Vec<Sv>,String>
 {
 
-    let mut my_perl = perl.my_perl();
+    let my_perl = perl.my_perl();
 
     // dSP
     let mut sp = my_perl.Istack_sp;
