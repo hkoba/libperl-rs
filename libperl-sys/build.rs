@@ -86,24 +86,12 @@ fn main() {
 
             .opaque_type("timex")
 
-            .blacklist_type("max_align_t")
-
-            .blacklist_item("IPPORT_RESERVED")
-
-            .blacklist_item("FP_.*")
-        // .blacklist_item("FP_INT_UPWARD")
-        // .blacklist_item("FP_INT_DOWNWARD")
-        // .blacklist_item("FP_INT_TOWARDZERO")
-        // .blacklist_item("FP_INT_TONEARESTFROMZERO")
-        // .blacklist_item("FP_INT_TONEAREST")
-        // .blacklist_item("FP_NAN")
-        // .blacklist_item("FP_INFINITE")
-        // .blacklist_item("FP_ZERO")
-        // .blacklist_item("FP_SUBNORMAL")
-        // .blacklist_item("FP_NORMAL")
-
-            .blacklist_function("f?printf")
-            .blacklist_function("f?scanf")
+            .allowlist_file("/usr/lib64/perl5/CORE/perl.h")
+            .allowlist_file("/usr/lib64/perl5/CORE/cop.h")
+            .allowlist_item("opcode")
+            .allowlist_item("(Perl|perl|PL)_.*")
+            .allowlist_item("([SAHRGC]V|xpv).*")
+            .allowlist_item("OP.*")
 
         // Finish the builder and generate the bindings.
             .generate()
