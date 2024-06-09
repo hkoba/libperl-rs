@@ -232,7 +232,7 @@ impl Perl {
     
     #[cfg(perl_useithreads)]
     pub fn pushmark(&self, sp: *mut *mut SV) {
-        let mut my_perl = self.my_perl();
+        let my_perl = self.my_perl();
         unsafe {
             my_perl.Imarkstack_ptr = my_perl.Imarkstack_ptr.add(1)
         };
