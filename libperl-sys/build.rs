@@ -32,6 +32,10 @@ fn main() {
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
 
+    let archlib = String::from(&perl.dict["archlib"]);
+    let perl_h = Path::new(&archlib).join("CORE/perl.h");
+    let cop_h = Path::new(&archlib).join("CORE/cop.h");
+
     let ccopts = perl.read_ccopts().unwrap();
     println!("# perl ccopts = {:?}, ", ccopts);
 
@@ -86,8 +90,8 @@ fn main() {
 
             .opaque_type("timex")
 
-            .allowlist_file("/usr/lib64/perl5/CORE/perl.h")
-            .allowlist_file("/usr/lib64/perl5/CORE/cop.h")
+            .allowlist_file(perl_h.to_str().unwrap())
+            .allowlist_file(cop_h.to_str().unwrap())
             .allowlist_item("opcode")
             .allowlist_item("(Perl|perl|PL)_.*")
             .allowlist_item("([SAHRGC]V|xpv).*")
