@@ -72,10 +72,9 @@ fn main() {
         // the resulting bindings.
         let bindings = bindgen::Builder::default()
 
-            .rustfmt_bindings(true)
             .derive_debug(true)
             .impl_debug(true)
-
+            .formatter(bindgen::Formatter::Prettyplease)
             .rustified_enum("OPclass|opcode|svtype")
 
         // The input header we would like to generate
