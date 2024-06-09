@@ -96,6 +96,7 @@ fn main() {
             .allowlist_item("(Perl|perl|PL)_.*")
             .allowlist_item("([SAHRGC]V|xpv).*")
             .allowlist_item("OP.*")
+            .allowlist_item("G_.*")
 
         // Finish the builder and generate the bindings.
             .generate()
