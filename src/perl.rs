@@ -113,10 +113,10 @@ impl Perl {
         unsafe {self.my_perl.as_mut().unwrap()}
     }
 
-    pub fn parse(&mut self, args: &[&str], envp: &[&str]) -> i32 {
-        self.args = args.iter().map(|&arg| CString::new(arg).unwrap())
+    pub fn parse<S: AsRef<str>>(&mut self, args: &[S], envp: &[S]) -> i32 {
+        self.args = args.iter().map(|arg| CString::new(arg.as_ref()).unwrap())
             .collect::<Vec<CString>>();
-        self.env = envp.iter().map(|&arg| CString::new(arg).unwrap())
+        self.env = envp.iter().map(|arg| CString::new(arg.as_ref()).unwrap())
             .collect::<Vec<CString>>();
         
         self.perl_parse_1()
