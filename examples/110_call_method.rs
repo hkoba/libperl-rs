@@ -71,7 +71,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
     my_perl.Istack_sp = sp;
 
     // call_method
-    let cnt: i32 = unsafe_perl_api!{Perl_call_method(perl.my_perl, method_name.as_ptr() as *const i8, (G_METHOD_NAMED | G_LIST) as i32)};
+    let cnt = unsafe_perl_api!{Perl_call_method(perl.my_perl, method_name.as_ptr() as *const i8, (G_METHOD_NAMED | G_LIST) as i32)};
     
     // SPAGAIN
     // sp = my_perl.Istack_sp;
@@ -88,7 +88,7 @@ fn call_list_method(perl: &mut Perl, class_name: String, method_name: String, ar
 }
 
 #[cfg(all(perl_useithreads,perlapi_ver26))]
-fn stack_extract(perl: &Perl, count: i32) -> Vec<Sv> {
+fn stack_extract(perl: &Perl, count: perl_stack_size_t) -> Vec<Sv> {
     let mut res = Vec::new();
 
     let mut src = unsafe {(*(perl.my_perl)).Istack_base.add(1)};

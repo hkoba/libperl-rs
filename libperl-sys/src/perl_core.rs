@@ -3,3 +3,9 @@
 #![allow(non_snake_case)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+#[cfg(perlapi_ver40)]
+pub type perl_stack_size_t = isize;
+
+#[cfg(not(perlapi_ver40))]
+pub type perl_stack_size_t = i32;
