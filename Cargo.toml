@@ -1,6 +1,6 @@
 [package]
 name = "libperl-rs"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2018"
 description = "Embed perl5 runtime in Rust"
@@ -24,11 +24,11 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 
-libperl-sys = { "path" = "./libperl-sys", version = "^0.2"}
+libperl-sys = { "path" = "./libperl-sys", version = "^0.3"}
 typed-arena = "1.2.0"
 if_chain = "1.0"
 
 [build-dependencies]
 regex = "1"
 
-libperl-config = {"path" = "./libperl-config", version = "^0.2"}
+libperl-config = {"path" = "./libperl-config", version = "^0.3"}
