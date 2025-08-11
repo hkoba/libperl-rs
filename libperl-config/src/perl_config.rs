@@ -66,6 +66,8 @@ impl PerlConfig {
             if v % 2 == 1 {
                 continue;
             }
+            // Emit check-cfg for all possible versions (Rust 1.80+)
+            println!("cargo::rustc-check-cfg=cfg(perlapi_ver{})", v);
             if ver >= v {
                 println!("cargo:rustc-cfg=perlapi_ver{}", v);
             }
@@ -75,6 +77,8 @@ impl PerlConfig {
     pub fn emit_features(&self, configs: &[&str]) {
         for &cfg in configs.iter() {
             println!("# perl config {} = {:?}", cfg, self.dict.get(&String::from(cfg)));
+            // Emit check-cfg for all features (Rust 1.80+)
+            println!("cargo::rustc-check-cfg=cfg(perl_{})", cfg);
             if self.is_defined(cfg).unwrap() {
                 println!("cargo:rustc-cfg=perl_{}", cfg);
             }
