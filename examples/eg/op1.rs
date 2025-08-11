@@ -166,7 +166,7 @@ impl<'a> OpExtractor<'a> {
         Self {perl, ops: Arena::new()}
     }
 
-    pub fn extract(&self, cv: *const cv, o: *const op) -> &'a Op {
+    pub fn extract(&self, cv: *const cv, o: *const op) -> &'a Op<'_> {
         if o.is_null() {
             return self.ops.alloc(Op::NULL)
         }
