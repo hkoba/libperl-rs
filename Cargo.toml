@@ -24,11 +24,11 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 
-libperl-sys = { "path" = "./libperl-sys", version = "^0.3"}
+libperl-sys = { "path" = "./libperl-sys", version = "^0.3.1"}
 typed-arena = "1.2.0"
 if_chain = "1.0"
 
 [build-dependencies]
 regex = "1"
 
-libperl-config = {"path" = "./libperl-config", version = "^0.3"}
+libperl-config = {"path" = "./libperl-config", version = "^0.3.1"}
