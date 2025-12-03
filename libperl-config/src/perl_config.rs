@@ -57,11 +57,14 @@ impl PerlConfig {
         self.command.emit_cargo_ldopts()
     }
 
-    pub fn emit_perlapi_vers(&self, min: i32, max: i32) {
+    pub fn perl_api_version(&self) -> i32 {
         let config = &self.dict["PERL_API_VERSION"];
         let config = config.trim();
-        println!("# PERL_API_VERSION={}", config);
-        let ver = i32::from_str_radix(String::from(config).trim(), 10).unwrap();
+        i32::from_str_radix(String::from(config).trim(), 10).unwrap()
+    }
+
+    pub fn emit_perlapi_vers(&self, min: i32, max: i32) {
+        let ver = self.perl_api_version();
         for v in min..=max {
             if v % 2 == 1 {
                 continue;
