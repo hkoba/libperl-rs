@@ -16,7 +16,7 @@ use eg::{op1::*,sv0::*,cv0::*,stash_walker0::*};
 fn match_param_list(op: &Op) -> Vec<PadNameType> {
     let mut res: Vec<PadNameType> = Vec::new();
     if let Op::UNOP(opcode::OP_NULL, _,
-                    Op::OP(opcode::OP_PUSHMARK, _, _, ref args_op), _) = op {
+                    Op::OP(opcode::OP_PUSHMARK, _, _, args_op), _) = op {
         let mut args_op = args_op;
         while let Op::OP(_, _, Some(arg), rest) = args_op {
             res.push(arg.clone());
@@ -56,7 +56,7 @@ fn my_test() {
                                          , Op::OP(opcode::OP_PADRANGE, _, _
                                                   , Op::UNOP(opcode::OP_RV2AV, _
                                                              , Op::PADOP(opcode::OP_GV, _
-                                                                         , Sv::GLOB { name: ref nm, .. })
+                                                                         , Sv::GLOB { name: nm, .. })
                                                              , _))
                                          , lvalue)
                               , _) if nm == "_" => {

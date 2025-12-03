@@ -75,7 +75,7 @@ pub enum Sv {
 impl std::fmt::Debug for Sv {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            Sv::SCALAR {svtype, ref ivuv, nv, pv, sv: _} => {
+            Sv::SCALAR {svtype, ivuv, nv, pv, sv: _} => {
                 f.debug_struct("Sv::SCALAR")
                     .field("svtype", &SvtypeWrap(*svtype))
                     .field("ivuv", ivuv)
@@ -90,7 +90,7 @@ impl std::fmt::Debug for Sv {
             Sv::REGEXP(_) => {
                 f.debug_tuple("Sv::REGEXP").field(&VarName("_")).finish()
             },
-            Sv::GLOB {ref name, ref stash, ..} => {
+            Sv::GLOB {name, stash, ..} => {
                 f.debug_struct("Sv::GLOB")
                     .field("gv", &VarName("_"))
                     .field("name", name)

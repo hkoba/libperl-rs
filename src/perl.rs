@@ -56,7 +56,7 @@ impl Drop for Perl {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     #[cfg(perl_useithreads)]
     fn boot_DynaLoader(perl: *mut PerlInterpreter, cv: *mut CV);
     #[cfg(not(perl_useithreads))]
