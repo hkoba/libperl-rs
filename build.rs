@@ -9,5 +9,5 @@ fn main() {
 
     perl.emit_features(&["useithreads"]);
 
-    perl.emit_perlapi_vers(10, 30);
+    perl.emit_perlapi_vers(10, perl.perl_api_version());
 }
