@@ -204,7 +204,7 @@ impl Perl {
         unsafe {libperl_sys::PL_main_cv}
     }
 
-    #[cfg(all(perlapi_ver26))]
+    #[cfg(perlapi_ver26)]
     pub fn op_class(&self, o: *const OP) -> OPclass {
         unsafe {perl_api!{Perl_op_class(self.my_perl, o)}}
     }
