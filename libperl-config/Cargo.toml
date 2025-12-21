@@ -1,8 +1,8 @@
 [package]
 name = "libperl-config"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,4 +19,5 @@ disable-tag = true
 disable-push = true
 
 [dependencies]
+chrono = "0.4.42"
 regex = "1"

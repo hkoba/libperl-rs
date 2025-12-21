@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 type ConfigDict = HashMap<String, String>;
 
+use chrono::prelude::*;
+
 pub struct PerlConfig {
     command: PerlCommand,
     pub dict: ConfigDict,
@@ -61,6 +63,19 @@ impl PerlConfig {
         let config = &self.dict["PERL_API_VERSION"];
         let config = config.trim();
         i32::from_str_radix(String::from(config).trim(), 10).unwrap()
+    }
+
+    pub fn emit_all_perlapi_versions(&self, min: i32) {
+        let local_time = Local::now();
+        let current_year = local_time.year();
+        println!("# curyear = {}", current_year);
+        let yearly_perl_ver = self.yearly_perl_version(current_year);
+        println!("# yearly perl = {}", yearly_perl_ver);
+        self.emit_perlapi_vers(min, yearly_perl_ver)
+    }
+
+    pub fn yearly_perl_version(&self, year: i32) -> i32 {
+        (year - 2004) * 2
     }
 
     pub fn emit_perlapi_vers(&self, min: i32, max: i32) {

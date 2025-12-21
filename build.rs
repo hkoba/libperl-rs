@@ -9,5 +9,5 @@ fn main() {
 
     config.emit_features(&["useithreads"]);
 
-    config.emit_perlapi_vers(10, 40);
+    config.emit_all_perlapi_versions(10);
 }
