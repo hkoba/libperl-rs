@@ -28,9 +28,13 @@ crate-type = ["rlib", "cdylib"]
 
 
 [dependencies]
+phf = { version = "0.11", features = ["macros"] }
 
 [build-dependencies]
 bindgen = "0.69"
 regex = "1"
+syn = { version = "2", features = ["full", "parsing"] }
+quote = "1"
+phf_codegen = "0.11"
 
 libperl-config = {"path" = "../libperl-config", version = "^0.3"}

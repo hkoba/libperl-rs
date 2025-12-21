@@ -33,8 +33,10 @@ pub fn HvAUX(hv: *const HV) -> *const xpvhv_aux {
 
 #[cfg(not(perlapi_ver36))]
 pub fn HvAUX(hv: *const HV) -> *const xpvhv_aux {
-    let xpv = unsafe {(*hv).sv_any} as *const xpvhv;
-    unsafe {& (*xpv).xhv_aux}
+    let hva = HvARRAY(hv);
+    let aux_off = unsafe {*HvANY(hv)}.xhv_max + 1;
+    (unsafe {hva.add(aux_off)})
+        as *const xpvhv_aux
 }
 
 pub fn HvNAME_HEK_NN(hv: *const HV) -> *const HEK {
