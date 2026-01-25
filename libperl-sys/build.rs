@@ -83,7 +83,7 @@ fn main() {
             .derive_debug(true)
             .impl_debug(true)
             .formatter(bindgen::Formatter::Prettyplease)
-            .rustified_enum("OPclass|opcode|svtype")
+            .rustified_enum(".*") // every enum
 
         // The input header we would like to generate
         // bindings for.
