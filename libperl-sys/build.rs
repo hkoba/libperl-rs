@@ -106,6 +106,8 @@ fn main() {
             .allowlist_item("([SAHRGC]V|xpv).*")
             .allowlist_item("OP.*")
             .allowlist_item("G_.*")
+            .allowlist_item("regex_charset")
+            .allowlist_item("SCX_enum")
 
         // Finish the builder and generate the bindings.
             .generate()
