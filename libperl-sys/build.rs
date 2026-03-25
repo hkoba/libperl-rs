@@ -85,6 +85,11 @@ fn main() {
             .formatter(bindgen::Formatter::Prettyplease)
             .rustified_enum(".*") // every enum
 
+            .derive_partialeq(true)   // #[derive(PartialEq)]
+            .derive_eq(true)          // #[derive(Eq)]
+            .derive_partialord(true)  // #[derive(PartialOrd)]
+            .derive_ord(true)         // #[derive(Ord)]
+
         // The input header we would like to generate
         // bindings for.
             .header(src_file_name)
