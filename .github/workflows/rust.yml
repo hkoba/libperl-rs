@@ -28,6 +28,17 @@ jobs:
         perl-version: ${{ matrix.perl-version }}
         multi-thread: ${{ matrix.threaded }}
 
+    - name: Debug include paths
+      run: |
+        echo "=== perl -V:incpth ==="
+        perl -V:incpth
+        echo "=== gcc -print-file-name=include ==="
+        gcc -print-file-name=include
+        echo "=== cc -E -Wp,-v ==="
+        cc -E -Wp,-v -xc /dev/null 2>&1 | sed -n '/search starts here/,/End of search list/p'
+        echo "=== stddef.h locations ==="
+        find /usr -name stddef.h 2>/dev/null
+
     - name: Build
       run: cargo build --verbose
     - name: Run tests
