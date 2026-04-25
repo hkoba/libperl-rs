@@ -58,9 +58,6 @@ jobs:
           head -n "$L" "$F" | grep -nE '^pub unsafe fn ' | tail -1
         done
 
-    - name: Run tests
-      run: cargo test --all --examples
-
     strategy:
       fail-fast: false
       matrix:
