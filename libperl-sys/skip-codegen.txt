@@ -78,4 +78,3 @@ S_perl_hash_siphash_2_4_64
 Perl_custom_op_xop
 CopFILE_free_x
 RX_MATCH_UTF8
-RCPV_LEN
