@@ -6,6 +6,8 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+include!(concat!(env!("OUT_DIR"), "/macro_bindings.rs"));
+
 #[cfg(perlapi_ver40)]
 pub type perl_stack_size_t = isize;
 

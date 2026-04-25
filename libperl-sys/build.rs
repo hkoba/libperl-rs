@@ -1,8 +1,10 @@
 extern crate bindgen;
 
 use libperl_config::*;
+use libperl_macrogen::Pipeline;
 
 use std::env;
+use std::fs::File;
 use std::io::Write;
 use std::path::{PathBuf, Path};
 
@@ -31,7 +33,7 @@ fn look_updated_against<'a>(checked: &Path, against: &[&'a Path]) -> Option<&'a 
     None
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
@@ -89,6 +91,7 @@ fn main() {
             .derive_eq(true)          // #[derive(Eq)]
             .derive_partialord(true)  // #[derive(PartialOrd)]
             .derive_ord(true)         // #[derive(Ord)]
+            // .flexarray_dst(true)      // flexible array members
 
         // The input header we would like to generate
         // bindings for.
@@ -119,10 +122,34 @@ fn main() {
             .write_to_file(out_file.to_str().unwrap())
             .expect("Couldn't write bindings!");
 
+        let macro_out_path = cargo_outdir().join("macro_bindings.rs");
+        let mut output = File::create(&macro_out_path)?;
+
+        let mut builder = Pipeline::builder("xs-wrapper.h")
+            .with_auto_perl_config()?
+            .with_bindings(&out_file)
+            .with_codegen_defaults();
+
+        let skip_list = cargo_topdir_file("skip-codegen.txt");
+
+        if skip_list.exists() {
+            builder = builder.with_skip_codegen_list(&skip_list);
+            println!("cargo:rerurn-if-changed={}", skip_list.display());
+        }
+
+        let _result = builder
+            .build()?
+            .generate(&mut output)?;
+
+        // println!("cargo:warning=Generated {} macro + {} inline functions",
+        //          result.stats.macro_success, result.stats.inline_success);
+
     }
 
     // Generate sigdb.rs from bindings.rs
     generate_sigdb(&out_file, &cargo_outdir().join("sigdb.rs"));
+
+    Ok(())
 }
 
 fn return_type_to_string(ret: &ReturnType) -> String {
