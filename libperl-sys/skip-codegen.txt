@@ -71,3 +71,11 @@ memCHRs
 newSVpvn_utf8
 sbox32_seed_state128
 set_arena
+Perl_bytes_to_utf8_temp_pv
+Perl_sv_can_existdelete
+S_perl_hash_siphash_1_3_64
+S_perl_hash_siphash_2_4_64
+Perl_custom_op_xop
+CopFILE_free_x
+RX_MATCH_UTF8
+RCPV_LEN
