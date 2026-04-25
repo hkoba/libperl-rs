@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y llvm-dev libclang-dev clang libnsl-dev
+        sudo apt-get install -y llvm-dev libclang-dev clang libnsl-dev libc6-dev build-essential
 
     - name: Set up Perl ${{ matrix.perl-version }}
       uses: shogo82148/actions-setup-perl@v1
