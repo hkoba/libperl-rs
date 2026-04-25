@@ -7,6 +7,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::{PathBuf, Path};
+use std::process::Command;
 
 use quote::ToTokens;
 use syn::{FnArg, ForeignItem, Item, Pat, ReturnType};
@@ -137,6 +138,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("cargo:rerurn-if-changed={}", skip_list.display());
         }
 
+        for p in cc_system_includes() {
+            builder = builder.with_include(p);
+        }
+
         let _result = builder
             .build()?
             .generate(&mut output)?;
@@ -247,4 +252,41 @@ fn generate_sigdb(bindings_path: &Path, sigdb_path: &Path) {
     writeln!(out, "}};").unwrap();
 
     println!("# Generated sigdb.rs with {} functions", funcs.len());
+}
+
+/// Discover the actual system include paths from the running C compiler.
+/// Used to bridge the gap between Perl's recorded `incpth` (which can point
+/// to a gcc version not present on the host, e.g. on GitHub Actions) and
+/// the headers actually available on the runner.
+fn cc_system_includes() -> Vec<PathBuf> {
+    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+    let output = match Command::new(&cc)
+        .args(["-E", "-Wp,-v", "-xc", "/dev/null"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            println!("cargo:warning=cc_system_includes: failed to run {}: {}", cc, e);
+            return Vec::new();
+        }
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let mut paths = Vec::new();
+    let mut in_list = false;
+    for line in stderr.lines() {
+        if line.contains("#include <...> search starts here") {
+            in_list = true;
+            continue;
+        }
+        if line.contains("End of search list") {
+            break;
+        }
+        if in_list {
+            let p = PathBuf::from(line.trim());
+            if p.is_dir() {
+                paths.push(p);
+            }
+        }
+    }
+    paths
 }
