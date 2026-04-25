@@ -39,6 +39,24 @@ jobs:
 
     - name: Build
       run: cargo build --verbose
+    - name: Upload macro_bindings.rs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macro_bindings
+        path: target/debug/build/libperl-sys-*/out/macro_bindings.rs
+    - name: Show skip-list status on failure
+      if: failure()
+      run: |
+        F=$(find target/debug/build -name macro_bindings.rs | head -1)
+        echo "=== CODEGEN_SUPPRESSED count ==="
+        grep -c '\[CODEGEN_SUPPRESSED\]' "$F" || echo 0
+        echo "=== Functions at error lines ==="
+        for L in 766 1234 1832 1835 2355 2557 5955 20120 22073 22082; do
+          echo "--- line $L ---"
+          head -n "$L" "$F" | grep -nE '^pub unsafe fn ' | tail -1
+        done
+
     - name: Run tests
       run: cargo test --all --examples
 
