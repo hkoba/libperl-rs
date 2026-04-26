@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        threaded: [ true ]
+        threaded: [ true, false ]
         perl-version:
           - '5.30'
           - '5.32'
