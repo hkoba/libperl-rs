@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  LIBPERL_MACROGEN_DEBUG_APIDOC: 1
 
 jobs:
   build:
