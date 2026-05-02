@@ -5,7 +5,7 @@ use std::env;
 use std::ffi::CStr;
 
 use libperl_rs::Perl;
-use libperl_sys::*;
+use libperl_sys::{OPf_KIDS, PL_op_name, op, unop};
 
 mod eg;
 

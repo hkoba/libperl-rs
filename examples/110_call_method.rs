@@ -3,7 +3,10 @@ use std::env;
 #[cfg(all(perl_useithreads,perlapi_ver26))]
 use libperl_rs::*;
 #[cfg(all(perl_useithreads,perlapi_ver26))]
-use libperl_sys::*;
+use libperl_sys::{
+    G_LIST, G_METHOD_NAMED, Perl_call_method, Perl_pop_scope, Perl_push_scope,
+    Perl_savetmps, Perl_stack_grow, perl_stack_size_t,
+};
 #[cfg(all(perl_useithreads,perlapi_ver26))]
 use std::convert::TryInto;
 

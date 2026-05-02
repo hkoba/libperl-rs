@@ -8,7 +8,10 @@ pub use libperl_sys::op;
 
 use if_chain::if_chain;
 
-use libperl_sys::*;
+use libperl_sys::{
+    OP, OPclass, OPf_KIDS, binop, cop, cv, listop, logop, opcode, padop, pvop, sv, unop,
+    unop_aux,
+};
 use libperl_rs::Perl;
 
 use super::sv0::{Sv, VarName, sv_extract};

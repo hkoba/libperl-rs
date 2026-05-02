@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use std::ffi::CStr;
-use libperl_sys::*;
+use libperl_sys::{AV, CV, PAD, PADLIST, PADNAMELIST, SV, padname, padnamelist};
 
 use super::av0::*;
 use super::hv0::*;

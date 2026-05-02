@@ -1,4 +1,4 @@
-use libperl_sys::*;
+use libperl_sys::{HE, HV, SV};
 use libperl_rs::Perl;
 
 pub struct HvIter<'a> {

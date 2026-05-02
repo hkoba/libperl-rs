@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
-use libperl_sys::*;
+use libperl_sys::{HE, HEK, HV, SV, xpvhv, xpvhv_aux};
+#[cfg(perlapi_ver36)]
+use libperl_sys::xpvhv_with_aux;
 use super::hek0::*;
 use super::sv0::*;
 
