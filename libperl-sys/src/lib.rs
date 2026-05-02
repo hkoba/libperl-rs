@@ -38,6 +38,15 @@ mod tests {
         };
     }
 
+    // Note: a smoke test for the PERLVAR-driven `PL_xxx!($my_perl)` macros
+    // would naturally live here, but `#[macro_export]` macros emitted via
+    // `include!()` are unreachable by absolute path within the *defining*
+    // crate (rejected by the
+    // `macro_expanded_macro_exports_accessed_by_absolute_paths` lint, which
+    // is on by default and slated to become a hard error). The smoke test
+    // is in `libperl-rs/tests/perlvar_macros.rs` instead, where cross-crate
+    // access goes through the normal path resolver and is unaffected.
+
     #[test]
     fn sigdb_lookup() {
         use super::sigdb::{FN_BY_NAME, FUNCS};
