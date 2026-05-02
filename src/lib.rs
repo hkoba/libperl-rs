@@ -1,10 +1,16 @@
 //! libperl-rs — safe Rust API on top of libperl-sys / libperl-macrogen.
 //!
-//! This crate is being rebuilt on top of libperl-macrogen (see
-//! `docs/plan/README.md`). The previous prototype API has been moved to the
-//! `libperl-proto0` workspace member.
-//!
-//! The new safe API is currently empty; macrogen-generated FFI is re-exported
-//! via `libperl_sys` for now.
+//! Re-exports everything from `libperl-sys` at the crate root so that
+//! consumers can write `libperl_rs::Perl_sv_setiv(...)` and
+//! `libperl_rs::PL_main_start!(my_perl)` uniformly. The old prototype API
+//! lives on as the `libperl-proto0` workspace member; see
+//! `docs/plan/README.md` for the rebuild plan.
 
-pub use libperl_sys;
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
+
+pub use libperl_sys::*;
+
+pub mod perl;
+pub use perl::*;
