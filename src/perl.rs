@@ -252,28 +252,6 @@ impl Perl {
             unsafe_perl_api!{Perl_free_tmps(self.my_perl)}
         }
     }
-    
-    #[cfg(perl_useithreads)]
-    pub fn sv_yes(&self) -> *const SV {
-        &(unsafe {*self.my_perl}.Isv_yes)
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn sv_yes(&self) -> *const SV {
-        &PL_sv_yes
-    }
-
-    pub fn SvIMMORTAL(&self, sv: *const SV) -> bool {
-        (sv as usize - (self.sv_yes() as usize)) < 4
-    }
-    
-    pub fn SvTRUE(&self, sv: *const SV) -> bool {
-        if !sv.is_null() && self.SvIMMORTAL(sv) {
-            sv == self.sv_yes()
-        } else {
-            false
-        }
-
-    }
 }
 
 #[macro_export]
