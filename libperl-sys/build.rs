@@ -123,6 +123,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .write_to_file(out_file.to_str().unwrap())
             .expect("Couldn't write bindings!");
 
+        patch_unsized_arrays(&out_file, &archlib);
+
         let macro_out_path = cargo_outdir().join("macro_bindings.rs");
         let mut output = File::create(&macro_out_path)?;
 
@@ -289,4 +291,92 @@ fn cc_system_includes() -> Vec<PathBuf> {
         }
     }
     paths
+}
+
+/// Patch unsized C array declarations in the bindgen output so that
+/// indexed access works at runtime.
+///
+/// Some Perl globals are declared as unsized C arrays in the headers:
+///
+/// ```c
+/// EXTCONST char* const PL_op_name[];   /* in opcode.h */
+/// EXTCONST char* const PL_op_desc[];   /* in opcode.h */
+/// ```
+///
+/// bindgen turns these into `[T; 0usize]`, which makes any `PL_op_name[i]`
+/// access panic at runtime ("index out of bounds"). C-side redeclaration
+/// in `wrapper.h` does not help because bindgen keeps the size from the
+/// first declaration it sees.
+///
+/// We post-process `bindings.rs` to replace `0usize` with the correct
+/// length. The length comes from `#define MAXO N` in `opnames.h`, which
+/// is exactly the number of opcodes for the target Perl.
+fn patch_unsized_arrays(bindings_path: &Path, archlib: &str) {
+    let opnames_h = Path::new(archlib).join("CORE/opnames.h");
+    let maxo = read_define_int(&opnames_h, "MAXO").unwrap_or_else(|| {
+        panic!(
+            "patch_unsized_arrays: could not read `#define MAXO` from {}",
+            opnames_h.display()
+        )
+    });
+
+    // (symbol name, length) pairs — extend as new unsized arrays appear.
+    let entries: &[(&str, usize)] = &[("PL_op_name", maxo), ("PL_op_desc", maxo)];
+
+    let original = std::fs::read_to_string(bindings_path)
+        .expect("patch_unsized_arrays: failed to read bindings.rs");
+    let mut patched = original;
+    let mut changes = 0usize;
+    for (sym, len) in entries {
+        let needle = format!("pub static {sym}: [");
+        let Some(decl_start) = patched.find(&needle) else {
+            println!(
+                "cargo:warning=patch_unsized_arrays: symbol {sym} not found in bindings.rs"
+            );
+            continue;
+        };
+        let scan_from = decl_start + needle.len();
+        let Some(decl_end_rel) = patched[scan_from..].find("];") else {
+            panic!("patch_unsized_arrays: malformed declaration for {sym}");
+        };
+        let decl_end = scan_from + decl_end_rel + 2;
+        let snippet = &patched[decl_start..decl_end];
+        if !snippet.contains("0usize") {
+            // Already sized — nothing to do.
+            continue;
+        }
+        let replaced = snippet.replacen("0usize", &format!("{len}usize"), 1);
+        let mut new_src = String::with_capacity(patched.len() + 8);
+        new_src.push_str(&patched[..decl_start]);
+        new_src.push_str(&replaced);
+        new_src.push_str(&patched[decl_end..]);
+        patched = new_src;
+        changes += 1;
+    }
+    if changes > 0 {
+        std::fs::write(bindings_path, patched)
+            .expect("patch_unsized_arrays: failed to write bindings.rs");
+        println!(
+            "# patched {changes} unsized PL_* arrays in bindings.rs (MAXO = {maxo})"
+        );
+    }
+}
+
+/// Read a `#define NAME N` integer macro from a C header file.
+/// Returns `None` if not found or not parseable as an unsigned integer.
+fn read_define_int(path: &Path, name: &str) -> Option<usize> {
+    let content = std::fs::read_to_string(path).ok()?;
+    for line in content.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("#define ") else {
+            continue;
+        };
+        let mut parts = rest.trim_start().split_whitespace();
+        if parts.next() != Some(name) {
+            continue;
+        }
+        if let Some(value) = parts.next() {
+            return value.parse().ok();
+        }
+    }
+    None
 }
