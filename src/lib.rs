@@ -1,22 +1,10 @@
-extern crate libperl_sys;
+//! libperl-rs — safe Rust API on top of libperl-sys / libperl-macrogen.
+//!
+//! This crate is being rebuilt on top of libperl-macrogen (see
+//! `docs/plan/README.md`). The previous prototype API has been moved to the
+//! `libperl-proto0` workspace member.
+//!
+//! The new safe API is currently empty; macrogen-generated FFI is re-exported
+//! via `libperl_sys` for now.
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate if_chain; // For OpExtractor
-
-pub mod perl;
-pub use perl::*;
-
-#[cfg(test)]
-mod tests {
-    use super::perl::*;
-
-    #[test]
-    fn it_works() {
-        let mut perl = Perl::new();
-        
-        // Below is expected to generate an error like following:
-        // Global symbol "$foo" requires explicit package name (did you forget to declare "my $foo"?) at -e line 1.
-        let _rc = perl.parse(&["", "-e", r#"use strict; $foo"#], &[""]);
-    }
-}
+pub use libperl_sys;

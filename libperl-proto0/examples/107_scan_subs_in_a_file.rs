@@ -2,7 +2,7 @@
 use std::env;
 
 #[cfg(perlapi_ver26)]
-use libperl_rs::*;
+use libperl_proto0::*;
 
 #[cfg(perlapi_ver26)]
 mod eg;

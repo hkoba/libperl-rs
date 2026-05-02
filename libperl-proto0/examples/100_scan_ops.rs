@@ -1,4 +1,4 @@
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 use libperl_sys::{op, PL_op_name};
 
 use std::env;

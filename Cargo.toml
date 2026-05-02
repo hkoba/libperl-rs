@@ -12,9 +12,7 @@ keywords = ["perl"]
 license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
 
 [workspace]
-members = ["libperl-sys", "libperl-config"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros"]
 
 [badges]
 travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
@@ -23,12 +21,7 @@ travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-
-libperl-sys = { "path" = "./libperl-sys", version = "^0.3.1"}
-typed-arena = "1.2.0"
-if_chain = "1.0"
+libperl-sys = { path = "./libperl-sys", version = "^0.3.1" }
 
 [build-dependencies]
-regex = "1"
-
-libperl-config = {"path" = "./libperl-config", version = "^0.3.1"}
+libperl-config = { path = "./libperl-config", version = "^0.3.1" }

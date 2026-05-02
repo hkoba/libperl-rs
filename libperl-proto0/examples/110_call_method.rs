@@ -1,7 +1,7 @@
 #[cfg(all(perl_useithreads,perlapi_ver26))]
 use std::env;
 #[cfg(all(perl_useithreads,perlapi_ver26))]
-use libperl_rs::*;
+use libperl_proto0::*;
 #[cfg(all(perl_useithreads,perlapi_ver26))]
 use libperl_sys::{
     G_LIST, G_METHOD_NAMED, Perl_call_method, Perl_pop_scope, Perl_push_scope,

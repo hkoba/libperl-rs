@@ -12,7 +12,7 @@ use libperl_sys::{
     OP, OPclass, OPf_KIDS, binop, cop, cv, listop, logop, opcode, padop, pvop, sv, unop,
     unop_aux,
 };
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 
 use super::sv0::{Sv, VarName, sv_extract};
 use super::pad0::*;

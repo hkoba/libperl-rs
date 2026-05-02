@@ -2,7 +2,7 @@ use std::env;
 
 // cargo run --example 102_padname_type -- -le 'my main $x; my $y'
 
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 
 mod eg;
 

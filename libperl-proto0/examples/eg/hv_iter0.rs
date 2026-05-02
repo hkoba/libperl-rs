@@ -1,5 +1,5 @@
 use libperl_sys::{HE, HV, SV};
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 
 pub struct HvIter<'a> {
     perl: &'a Perl,

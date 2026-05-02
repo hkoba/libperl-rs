@@ -1,4 +1,4 @@
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 use super::*;
 use super::{sv0::*,gv0::*};
 

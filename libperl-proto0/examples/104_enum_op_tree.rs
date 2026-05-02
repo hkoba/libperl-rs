@@ -1,7 +1,7 @@
 use std::env;
 
 use libperl_sys::op;
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 
 mod eg;
 use eg::op0::*;

@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 pub use libperl_sys::op;
 
 use libperl_sys::{OPclass, OPf_KIDS, PL_op_name, cv, opcode, padop, svop, unop};
-use libperl_rs::Perl;
+use libperl_proto0::Perl;
 
 use super::sv0::{Sv, sv_extract};
 use super::pad0::*;
