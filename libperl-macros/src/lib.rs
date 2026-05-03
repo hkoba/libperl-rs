@@ -17,6 +17,21 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, FnArg, ItemFn};
 
+mod xs_sub;
+mod xs_boot;
+
+/// `#[xs_sub]` — see `xs_sub` module documentation.
+#[proc_macro_attribute]
+pub fn xs_sub(attr: TokenStream, item: TokenStream) -> TokenStream {
+    xs_sub::xs_sub(attr, item)
+}
+
+/// `xs_boot!` — see `xs_boot` module documentation.
+#[proc_macro]
+pub fn xs_boot(input: TokenStream) -> TokenStream {
+    xs_boot::xs_boot(input)
+}
+
 /// `#[thx]` — splice `my_perl: *mut ::libperl_sys::PerlInterpreter` as the
 /// first parameter of `fn` in threaded builds; pass through unchanged in
 /// non-threaded builds.
