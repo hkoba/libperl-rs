@@ -73,7 +73,10 @@ pub fn xs_boot(input: TokenStream) -> TokenStream {
     let boot_ident_str = format!("boot_{}", pkg.replace("::", "__"));
     let boot_ident = Ident::new(&boot_ident_str, parsed.package.span());
 
-    let n_subs = parsed.subs.len() as isize;
+    // `Perl_xs_boot_epilog`'s `ax` parameter is `isize` in modern Perl
+    // (5.40+) but was `I32` (= `i32`) in older Perls. Emit a usize literal
+    // and `as _` so rustc infers the right integer type per perl version.
+    let n_subs = parsed.subs.len();
 
     let registrations = parsed.subs.iter().map(|sub| {
         let perl_name = format!("{pkg}::{sub}");
@@ -101,7 +104,7 @@ pub fn xs_boot(input: TokenStream) -> TokenStream {
             if my_perl.is_null() { return; }
             #( #registrations )*
             unsafe {
-                ::libperl_rs::Perl_xs_boot_epilog(my_perl, #n_subs);
+                ::libperl_rs::Perl_xs_boot_epilog(my_perl, #n_subs as _);
             }
         }
     };

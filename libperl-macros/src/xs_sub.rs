@@ -177,8 +177,11 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // dXSARGS-equivalent: pop the mark, derive ax / items / sp.
+            // Don't pin the offset type — `Stack_off_t` was introduced in
+            // Perl 5.36; older Perls expose the same field as `SSize_t` /
+            // `I32`. Letting rustc infer keeps the macro portable.
             let __sp: *mut *mut ::libperl_rs::SV = ::libperl_rs::PL_stack_sp!(my_perl);
-            let __mark_ax: ::libperl_rs::Stack_off_t = unsafe {
+            let __mark_ax = unsafe {
                 *::libperl_rs::PL_markstack_ptr!(my_perl)
             };
             // POPMARK: decrement markstack_ptr
