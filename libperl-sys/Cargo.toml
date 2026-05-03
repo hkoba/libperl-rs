@@ -39,4 +39,4 @@ quote = "1"
 phf_codegen = "0.11"
 
 libperl-config = {"path" = "../libperl-config", version = "^0.3"}
-libperl-macrogen = { git = "https://github.com/hkoba/libperl-macrogen.git", version = "0.1.2" }
+libperl-macrogen = { git = "https://github.com/hkoba/libperl-macrogen.git", version = "0.1.2", branch = "feat/perlvar-emission" }
