@@ -263,7 +263,10 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 #myperl_arg_prefix
                                 *#svp_ident,
                                 &mut #len_ident,
-                                ::libperl_rs::SV_GMAGIC,
+                                // `flags` parameter is `U32` on modern
+                                // Perl but `I32` on 5.30 / 5.32 — `as _`
+                                // lets rustc infer the right width.
+                                ::libperl_rs::SV_GMAGIC as _,
                             )
                         };
                         // Borrow the buffer as &CStr — same lifetime as
