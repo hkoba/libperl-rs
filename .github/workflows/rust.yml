@@ -45,6 +45,10 @@ jobs:
       with:
         name: macro_bindings
         path: target/debug/build/libperl-sys-*/out/macro_bindings.rs
+
+    - name: Run tests
+      run: cargo test --workspace --examples
+
     - name: Show skip-list status on failure
       if: failure()
       run: |
