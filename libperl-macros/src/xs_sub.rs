@@ -369,8 +369,12 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     __bytes.as_ptr() as *const ::core::ffi::c_char,
                     __bytes.len() as _,
                 );
-                // Mark UTF-8 by setting the flag bit on the SV.
-                (*__targ).sv_flags |= ::libperl_rs::SVf_UTF8;
+                // Mark UTF-8 via the macrogen-emitted `SvUTF8_on`
+                // helper. Avoids touching `sv_flags` directly — its
+                // type differs across Perl versions (`U32` on modern,
+                // `I32` on 5.30 / 5.32), which would force fragile
+                // `as _` casts at the OR site.
+                ::libperl_rs::SvUTF8_on(__targ);
             }
             unsafe {
                 // ST(0) = __targ, *not* `*__sp = __targ` — `__sp` was
