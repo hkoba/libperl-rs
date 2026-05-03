@@ -17,5 +17,9 @@ libperl-sys = { path = "../libperl-sys" }
 typed-arena = "1.2.0"
 if_chain = "1.0"
 
+[dev-dependencies]
+libc = "0.2"
+tempfile = "3"
+
 [build-dependencies]
 libperl-config = { path = "../libperl-config" }
