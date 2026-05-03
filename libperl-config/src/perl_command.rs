@@ -76,7 +76,16 @@ impl PerlCommand {
                 println!("cargo:rustc-link-search={}", libpath);
                 if std::path::Path::new(libpath).file_name()
                     == Some(std::ffi::OsStr::new("CORE")) {
-                        println!("cargo:rustc-cdylib-link-arg=-Wl,-rpath,{}", libpath);
+                        // Embed rpath into ALL link products of the calling
+                        // crate — `cargo:rustc-link-arg=` covers cdylibs,
+                        // bins, examples, AND `cargo test` binaries. The
+                        // earlier `cargo:rustc-cdylib-link-arg=` form only
+                        // covered cdylibs, so test binaries on perls
+                        // installed in non-default locations (e.g. via
+                        // `shogo82148/actions-setup-perl@v1`) failed at
+                        // runtime with `libperl.so: cannot open shared
+                        // object file`.
+                        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libpath);
                     }
             }
             else if opt.starts_with("-l") {
