@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 libperl-rs = { path = ".." }
 libperl-sys = { path = "../libperl-sys" }
+libc = "0.2"
 
 [build-dependencies]
 libperl-config = { path = "../libperl-config" }

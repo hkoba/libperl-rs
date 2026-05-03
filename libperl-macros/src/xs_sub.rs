@@ -52,13 +52,21 @@ enum ArgKind {
     InStr,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum RetKind {
     Scalar(SvFlavor),
     Bool,
     Unit,
     /// `String` — the bytes are pushed via `Perl_sv_setpvn`.
     String_,
+    /// `Vec<IV / UV / NV>` — variable-length list of scalar SVs.
+    /// PPCODE-style: extend the stack, push each mortal value.
+    VecScalar(SvFlavor),
+    /// `Vec<String>` — variable-length list of UTF-8 string SVs.
+    VecString,
+    /// `Result<T, String>` — `Ok(v)` proceeds with the inner kind's
+    /// push path; `Err(s)` calls `Perl_croak` with `s` as the message.
+    ResultErrString(Box<RetKind>),
 }
 
 struct ArgSpec {
@@ -327,8 +335,40 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-    // (g) return value push
-    let return_push: TokenStream2 = match ret_kind {
+    // (g) Result wrapper: emit unwrap-or-croak, then continue with the
+    // inner kind's push code. For non-Result returns, this is a no-op.
+    let (unwrap_code, push_kind) = match ret_kind {
+        RetKind::ResultErrString(inner) => (
+            quote! {
+                // `Perl_croak` is variadic and returns `!`. We pass
+                // `"%s\n"` plus a NUL-terminated message; if the
+                // user-supplied error text contains an interior NUL,
+                // fall back to a fixed warning so we still croak
+                // safely instead of panicking.
+                let __ret = match __raw {
+                    ::core::result::Result::Ok(v) => v,
+                    ::core::result::Result::Err(__e) => {
+                        let __msg = ::std::ffi::CString::new(__e)
+                            .unwrap_or_else(|_| ::std::ffi::CString::new(
+                                "xs_sub: error message contained interior NUL",
+                            ).unwrap());
+                        unsafe {
+                            ::libperl_rs::Perl_croak(
+                                #myperl_arg_prefix
+                                c"%s\n".as_ptr(),
+                                __msg.as_ptr(),
+                            );
+                        }
+                    }
+                };
+            },
+            *inner,
+        ),
+        other => (quote! { let __ret = __raw; }, other),
+    };
+
+    // (h) push code per inner RetKind
+    let push_code: TokenStream2 = match push_kind {
         RetKind::Scalar(flavor) => {
             let setter = sv_flavor_setter(flavor);
             quote! {
@@ -395,6 +435,66 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let _ = __ret;
             __set_sp_for_n(0);
         },
+        RetKind::VecScalar(flavor) => {
+            let setter = sv_flavor_setter(flavor);
+            quote! {
+                let __n: usize = __ret.len();
+                // Make sure the stack can hold __n return slots.
+                // `Perl_stack_grow` is a no-op when there's already
+                // room; otherwise it reallocates (the new sp is
+                // returned, but PL_stack_base updates internally).
+                unsafe {
+                    let _ = ::libperl_rs::Perl_stack_grow(
+                        #myperl_arg_prefix
+                        ::libperl_rs::PL_stack_sp!(my_perl),
+                        ::libperl_rs::PL_stack_sp!(my_perl),
+                        __n as _,
+                    );
+                }
+                for (__i, __val) in __ret.iter().enumerate() {
+                    unsafe {
+                        let __targ = ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only);
+                        ::libperl_rs::#setter(#myperl_arg_prefix __targ, *__val);
+                        *::libperl_rs::PL_stack_base!(my_perl).add(__ax + __i) = __targ;
+                    }
+                }
+                __set_sp_for_n(__n);
+            }
+        }
+        RetKind::VecString => quote! {
+            let __n: usize = __ret.len();
+            unsafe {
+                let _ = ::libperl_rs::Perl_stack_grow(
+                    #myperl_arg_prefix
+                    ::libperl_rs::PL_stack_sp!(my_perl),
+                    ::libperl_rs::PL_stack_sp!(my_perl),
+                    __n as _,
+                );
+            }
+            for (__i, __val) in __ret.iter().enumerate() {
+                unsafe {
+                    let __targ = ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only);
+                    let __bytes: &[u8] = __val.as_bytes();
+                    ::libperl_rs::Perl_sv_setpvn(
+                        #myperl_arg_prefix
+                        __targ,
+                        __bytes.as_ptr() as *const ::core::ffi::c_char,
+                        __bytes.len() as _,
+                    );
+                    let __cur_flags: i64 = (*__targ).sv_flags as i64;
+                    (*__targ).sv_flags =
+                        (__cur_flags | (::libperl_rs::SVf_UTF8 as i64)) as _;
+                    *::libperl_rs::PL_stack_base!(my_perl).add(__ax + __i) = __targ;
+                }
+            }
+            __set_sp_for_n(__n);
+        },
+        RetKind::ResultErrString(_) => unreachable!("Result is unwrapped before push"),
+    };
+
+    let return_push: TokenStream2 = quote! {
+        #unwrap_code
+        #push_code
     };
 
     // Note: NO `#[unsafe(no_mangle)]` here. The trampoline is referenced
@@ -443,8 +543,9 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             // User body — invoked via the hidden helper fn so the user's
             // typed signature is preserved for tooling and import-usage
-            // analysis.
-            let __ret: #ret_ty_for_user = #body_fn_name( #( #user_arg_call ),* );
+            // analysis. Bound as `__raw` so the Result-unwrap layer
+            // (when present) can produce `__ret` from it.
+            let __raw: #ret_ty_for_user = #body_fn_name( #( #user_arg_call ),* );
 
             // Out-param write-back (`OUTPUT: arg` in xsubpp parlance).
             #( #out_writebacks )*
@@ -494,10 +595,47 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
         match last.ident.to_string().as_str() {
             "bool" => return Some(RetKind::Bool),
             "String" => return Some(RetKind::String_),
+            "Vec" => return classify_vec_inner(&last.arguments),
+            "Result" => return classify_result_inner(&last.arguments),
             _ => {}
         }
     }
     classify_scalar(ty).map(RetKind::Scalar)
+}
+
+/// `Vec<T>` — inspect the single generic arg.
+fn classify_vec_inner(args: &syn::PathArguments) -> Option<RetKind> {
+    let inner = generic_arg_n(args, 0)?;
+    if let Type::Path(TypePath { path, .. }) = inner {
+        if path.segments.last().is_some_and(|s| s.ident == "String") {
+            return Some(RetKind::VecString);
+        }
+    }
+    classify_scalar(inner).map(RetKind::VecScalar)
+}
+
+/// `Result<T, String>` — recurse into `T`. The error type is required
+/// to be `String` (any path whose last segment is `String`).
+fn classify_result_inner(args: &syn::PathArguments) -> Option<RetKind> {
+    let ok_ty = generic_arg_n(args, 0)?;
+    let err_ty = generic_arg_n(args, 1)?;
+    let err_is_string = matches!(
+        err_ty,
+        Type::Path(TypePath { path, .. })
+            if path.segments.last().is_some_and(|s| s.ident == "String"),
+    );
+    if !err_is_string {
+        return None;
+    }
+    let inner = classify_ret_type(ok_ty)?;
+    Some(RetKind::ResultErrString(Box::new(inner)))
+}
+
+fn generic_arg_n(args: &syn::PathArguments, n: usize) -> Option<&Type> {
+    let syn::PathArguments::AngleBracketed(args) = args else { return None };
+    let arg = args.args.iter().nth(n)?;
+    let syn::GenericArgument::Type(ty) = arg else { return None };
+    Some(ty)
 }
 
 fn classify_scalar(ty: &Type) -> Option<SvFlavor> {

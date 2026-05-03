@@ -33,7 +33,43 @@ fn byte_len(s: &CStr) -> IV {
     s.to_bytes().len() as IV
 }
 
+/// `Mytest2::statfs($path)` — perlxstut EXAMPLE 5 shape.
+///
+/// On success returns a 7-element list `(bsize, frsize, blocks,
+/// bfree, bavail, files, ffree)` from `statvfs(3)`. On failure
+/// croaks with the OS error message (perlxstut returns a single NV
+/// of `errno`; we use `Result::Err` so the caller sees `$@`
+/// instead of a magic-number list).
+#[xs_sub]
+fn statfs(path: &CStr) -> Result<Vec<NV>, String> {
+    let mut sb: libc::statvfs = unsafe { std::mem::zeroed() };
+    let rc = unsafe { libc::statvfs(path.as_ptr(), &mut sb) };
+    if rc != 0 {
+        return Err(format!(
+            "statvfs({:?}) failed: {}",
+            path,
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(vec![
+        sb.f_bsize as NV,
+        sb.f_frsize as NV,
+        sb.f_blocks as NV,
+        sb.f_bfree as NV,
+        sb.f_bavail as NV,
+        sb.f_files as NV,
+        sb.f_ffree as NV,
+    ])
+}
+
+/// `Mytest2::words($s)` — split a string on whitespace, return the
+/// list of substrings. Demonstrates `Vec<String>` return.
+#[xs_sub]
+fn words(s: &str) -> Vec<String> {
+    s.split_whitespace().map(|w| w.to_string()).collect()
+}
+
 xs_boot! {
     package = "Mytest2";
-    subs = [foo, shout, byte_len];
+    subs = [foo, shout, byte_len, statfs, words];
 }
