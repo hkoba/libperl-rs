@@ -1,45 +1,54 @@
-//! `#[xs_sub]` proc-macro implementation (v1).
+//! `#[xs_sub]` proc-macro implementation.
 //!
-//! Turns a Rust function with a high-level signature like
+//! Turns a Rust function with a high-level signature into a complete
+//! `extern "C"` XS-callable trampoline. See `docs/plan/README.md` §3.11
+//! for the design rationale.
 //!
-//! ```ignore
-//! #[xs_sub]
-//! fn is_even(n: IV) -> bool { n % 2 == 0 }
-//! ```
+//! Supported types (Phase 3.7 — perlxstut EXAMPLE 3):
 //!
-//! into an `extern "C"` XS-callable trampoline that:
+//! | Rust type     | as arg                        | as return                  |
+//! |---------------|-------------------------------|----------------------------|
+//! | `IV`          | `SvIV`                        | `Perl_sv_setiv`            |
+//! | `UV`          | `SvUV`                        | `Perl_sv_setuv`            |
+//! | `NV`          | `SvNV`                        | `Perl_sv_setnv`            |
+//! | `bool`        | (not supported as arg)        | `Perl_sv_setiv(_ as IV)`   |
+//! | `()`          | n/a                           | no return push             |
+//! | `&mut IV`     | out-param: read + write back  | n/a (use `()` return)      |
+//! | `&mut UV`     | out-param: read + write back  | n/a                        |
+//! | `&mut NV`     | out-param: read + write back  | n/a                        |
 //!
-//!   * takes `(my_perl: *mut PerlInterpreter, cv: *mut CV)`
-//!   * extracts each declared argument from the Perl stack via the
-//!     appropriate `Sv*` reader
-//!   * runs the user's body
-//!   * pushes the return value back onto the stack as a mortal SV
-//!
-//! v1 type set:
-//!
-//! | Rust type | as arg          | as return |
-//! |-----------|-----------------|-----------|
-//! | `IV`      | `SvIV(my_perl, sv)` | `Perl_sv_setiv` |
-//! | `bool`    | (not supported) | `Perl_sv_setiv(_, _, val as IV)` |
-//!
-//! Other types will be added incrementally; passing an unsupported type
-//! produces a clear compile-time diagnostic at the proc-macro boundary.
+//! Other types produce a `compile_error!` pointing at the offending span.
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
     parse_macro_input, FnArg, Ident, ItemFn, Pat, PatType, ReturnType, Type, TypePath,
+    TypeReference,
 };
+
+/// Scalar SV flavor — IV / UV / NV. Common to in-args, out-args, and
+/// return values; each maps to a specific `Sv*` reader and `Perl_sv_set*`
+/// writer.
+#[derive(Clone, Copy)]
+enum SvFlavor {
+    Iv,
+    Uv,
+    Nv,
+}
 
 #[derive(Clone, Copy)]
 enum ArgKind {
-    Iv,
+    /// Read-only scalar arg, e.g. `n: IV` or `x: NV`.
+    In(SvFlavor),
+    /// Out-parameter, e.g. `arg: &mut NV`. Read at entry, written back
+    /// to the caller's SV after the body returns.
+    Out(SvFlavor),
 }
 
 #[derive(Clone, Copy)]
 enum RetKind {
-    Iv,
+    Scalar(SvFlavor),
     Bool,
     Unit,
 }
@@ -68,7 +77,8 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     None => {
                         return error(
                             ty,
-                            "`#[xs_sub]` v1 only supports `IV` argument type",
+                            "`#[xs_sub]` argument must be `IV` / `UV` / `NV` \
+                             or `&mut IV` / `&mut UV` / `&mut NV`",
                         );
                     }
                 };
@@ -84,7 +94,7 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             None => {
                 return error(
                     ty,
-                    "`#[xs_sub]` v1 only supports `IV`, `bool`, or `()` return",
+                    "`#[xs_sub]` return must be `()` / `bool` / `IV` / `UV` / `NV`",
                 );
             }
         },
@@ -110,8 +120,17 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #[inline]
         #body_fn_item
     };
-    let user_arg_call: Vec<TokenStream2> =
-        arg_specs.iter().map(|s| { let n = &s.name; quote! { #n } }).collect();
+    // Build the body call's argument list — out-params get `&mut`.
+    let user_arg_call: Vec<TokenStream2> = arg_specs
+        .iter()
+        .map(|s| {
+            let n = &s.name;
+            match s.kind {
+                ArgKind::In(_) => quote! { #n },
+                ArgKind::Out(_) => quote! { &mut #n },
+            }
+        })
+        .collect();
 
     let arg_count = arg_specs.len();
     let usage_str = arg_specs
@@ -129,6 +148,13 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // - threaded:     `Perl_*(my_perl, ...)`, `(*my_perl).I<field>`
     // - non-threaded: `Perl_*(...)`,          `$crate::PL_<global>`
     let threaded = cfg!(perl_useithreads);
+
+    // `my_perl,` (with comma) for use as an FFI call's first arg in
+    // threaded build, empty in non-threaded build.
+    let myperl_arg_prefix: TokenStream2 = if threaded { quote! { my_perl, } } else { quote! {} };
+    // `my_perl` (without comma) for FFI calls that take *only* my_perl
+    // in threaded mode.
+    let myperl_arg_only: TokenStream2 = if threaded { quote! { my_perl } } else { quote! {} };
 
     // (a) trampoline parameter list
     let trampoline_params = if threaded {
@@ -186,62 +212,66 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // (e) per-argument extraction — `SvIV(my_perl, sv)` vs `SvIV(sv)`
+    // (e) per-argument extraction
     let arg_extractions: Vec<TokenStream2> = arg_specs
         .iter()
         .enumerate()
         .map(|(i, spec)| {
             let name = &spec.name;
+            let svp_ident = quote::format_ident!("__svp_{}", name);
             let i_lit = syn::Index::from(i);
-            match spec.kind {
-                ArgKind::Iv => {
-                    let sviv_call = if threaded {
-                        quote! { ::libperl_rs::SvIV(my_perl, *svp) }
-                    } else {
-                        quote! { ::libperl_rs::SvIV(*svp) }
-                    };
-                    quote! {
-                        let #name: ::libperl_rs::IV = unsafe {
-                            let svp = ::libperl_rs::PL_stack_base!(my_perl)
-                                .add(__ax + #i_lit);
-                            #sviv_call
-                        };
-                    }
-                }
+            let (flavor, is_mut) = match spec.kind {
+                ArgKind::In(f) => (f, false),
+                ArgKind::Out(f) => (f, true),
+            };
+            let (rust_ty, reader) = sv_flavor_input(flavor);
+            let mut_kw = if is_mut { quote! { mut } } else { quote! {} };
+            quote! {
+                let #svp_ident: *mut *mut ::libperl_rs::SV = unsafe {
+                    ::libperl_rs::PL_stack_base!(my_perl).add(__ax + #i_lit)
+                };
+                let #mut_kw #name: #rust_ty = unsafe {
+                    ::libperl_rs::#reader(#myperl_arg_prefix *#svp_ident)
+                };
             }
         })
         .collect();
 
-    // (f) return value push — `Perl_sv_newmortal(my_perl)` vs `()`
-    let new_mortal = if threaded {
-        quote! { ::libperl_rs::Perl_sv_newmortal(my_perl) }
-    } else {
-        quote! { ::libperl_rs::Perl_sv_newmortal() }
-    };
-    let setiv_call_iv = if threaded {
-        quote! { ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret); }
-    } else {
-        quote! { ::libperl_rs::Perl_sv_setiv(__targ, __ret); }
-    };
-    let setiv_call_bool = if threaded {
-        quote! {
-            ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret as ::libperl_rs::IV);
-        }
-    } else {
-        quote! {
-            ::libperl_rs::Perl_sv_setiv(__targ, __ret as ::libperl_rs::IV);
-        }
-    };
+    // (f) out-param write-back (after body call, before return push)
+    let out_writebacks: Vec<TokenStream2> = arg_specs
+        .iter()
+        .filter_map(|spec| {
+            let ArgKind::Out(flavor) = spec.kind else { return None; };
+            let name = &spec.name;
+            let svp_ident = quote::format_ident!("__svp_{}", name);
+            let setter = sv_flavor_setter(flavor);
+            Some(quote! {
+                unsafe {
+                    ::libperl_rs::#setter(#myperl_arg_prefix *#svp_ident, #name);
+                }
+            })
+        })
+        .collect();
+
+    // (g) return value push
     let return_push: TokenStream2 = match ret_kind {
-        RetKind::Iv => quote! {
-            let __targ = unsafe { #new_mortal };
-            unsafe { #setiv_call_iv }
-            unsafe { *__sp = __targ; }
-            __set_sp_for_n(1);
-        },
+        RetKind::Scalar(flavor) => {
+            let setter = sv_flavor_setter(flavor);
+            quote! {
+                let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only) };
+                unsafe { ::libperl_rs::#setter(#myperl_arg_prefix __targ, __ret); }
+                unsafe { *__sp = __targ; }
+                __set_sp_for_n(1);
+            }
+        }
         RetKind::Bool => quote! {
-            let __targ = unsafe { #new_mortal };
-            unsafe { #setiv_call_bool }
+            let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only) };
+            unsafe {
+                ::libperl_rs::Perl_sv_setiv(
+                    #myperl_arg_prefix __targ,
+                    __ret as ::libperl_rs::IV,
+                );
+            }
             unsafe { *__sp = __targ; }
             __set_sp_for_n(1);
         },
@@ -251,10 +281,19 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         },
     };
 
+    // Note: NO `#[unsafe(no_mangle)]` here. The trampoline is referenced
+    // only by function-pointer (passed to `Perl_newXS_deffile` from
+    // `xs_boot!`), so it doesn't need a stable C symbol name. Worse,
+    // *adding* `no_mangle` is actively harmful when the user's chosen
+    // sub name happens to collide with a libc / libm symbol — e.g.
+    // `fn round(arg: &mut NV)` exports a `round` symbol, which the
+    // dynamic linker happily resolves to libm's `double round(double)`
+    // when `boot_Mytest` looks up `Some(round)`. The XS sub then never
+    // runs, libm's `round` is called with garbage arguments, and the
+    // SV is never modified — silent failure.
     let trampoline = quote! {
         #body_fn
 
-        #[unsafe(no_mangle)]
         #[allow(unused_variables, unreachable_code)]
         pub extern "C" fn #fn_name( #trampoline_params ) {
             #null_check
@@ -282,13 +321,17 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 return;
             }
 
-            // Argument extraction
+            // Argument extraction (also remembers svp pointers for any
+            // out-params, so we can write the new value back at the end).
             #( #arg_extractions )*
 
             // User body — invoked via the hidden helper fn so the user's
             // typed signature is preserved for tooling and import-usage
             // analysis.
             let __ret: #ret_ty_for_user = #body_fn_name( #( #user_arg_call ),* );
+
+            // Out-param write-back (`OUTPUT: arg` in xsubpp parlance).
+            #( #out_writebacks )*
 
             // SP setter helper, centralised so the off-by-one is not at
             // each call site
@@ -302,32 +345,70 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
     trampoline.into()
 }
 
+// ─── Type-classifier helpers ───────────────────────────────────────
+
 fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
-    match ty {
-        Type::Path(TypePath { path, .. }) => {
-            let last = path.segments.last()?;
-            match last.ident.to_string().as_str() {
-                "IV" => Some(ArgKind::Iv),
-                _ => None,
-            }
-        }
-        _ => None,
+    if let Type::Reference(TypeReference { mutability: Some(_), elem, .. }) = ty {
+        // `&mut T` — out-parameter
+        return classify_scalar(elem).map(ArgKind::Out);
     }
+    classify_scalar(ty).map(ArgKind::In)
 }
 
 fn classify_ret_type(ty: &Type) -> Option<RetKind> {
-    match ty {
-        Type::Tuple(t) if t.elems.is_empty() => Some(RetKind::Unit),
-        Type::Path(TypePath { path, .. }) => {
-            let last = path.segments.last()?;
-            match last.ident.to_string().as_str() {
-                "IV" => Some(RetKind::Iv),
-                "bool" => Some(RetKind::Bool),
-                _ => None,
-            }
+    if let Type::Tuple(t) = ty {
+        if t.elems.is_empty() {
+            return Some(RetKind::Unit);
         }
-        _ => None,
     }
+    if let Type::Path(TypePath { path, .. }) = ty {
+        let last = path.segments.last()?;
+        if last.ident == "bool" {
+            return Some(RetKind::Bool);
+        }
+    }
+    classify_scalar(ty).map(RetKind::Scalar)
+}
+
+fn classify_scalar(ty: &Type) -> Option<SvFlavor> {
+    if let Type::Path(TypePath { path, .. }) = ty {
+        let last = path.segments.last()?;
+        return match last.ident.to_string().as_str() {
+            "IV" => Some(SvFlavor::Iv),
+            "UV" => Some(SvFlavor::Uv),
+            "NV" => Some(SvFlavor::Nv),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// `(Rust scalar type, Sv* reader fn ident)` for the given flavor.
+fn sv_flavor_input(flavor: SvFlavor) -> (TokenStream2, Ident) {
+    match flavor {
+        SvFlavor::Iv => (
+            quote! { ::libperl_rs::IV },
+            Ident::new("SvIV", proc_macro2::Span::call_site()),
+        ),
+        SvFlavor::Uv => (
+            quote! { ::libperl_rs::UV },
+            Ident::new("SvUV", proc_macro2::Span::call_site()),
+        ),
+        SvFlavor::Nv => (
+            quote! { ::libperl_rs::NV },
+            Ident::new("SvNV", proc_macro2::Span::call_site()),
+        ),
+    }
+}
+
+/// `Perl_sv_set*` ident for the given flavor.
+fn sv_flavor_setter(flavor: SvFlavor) -> Ident {
+    let n = match flavor {
+        SvFlavor::Iv => "Perl_sv_setiv",
+        SvFlavor::Uv => "Perl_sv_setuv",
+        SvFlavor::Nv => "Perl_sv_setnv",
+    };
+    Ident::new(n, proc_macro2::Span::call_site())
 }
 
 fn error<T: quote::ToTokens>(spanned: T, msg: &str) -> TokenStream {
