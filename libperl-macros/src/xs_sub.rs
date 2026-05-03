@@ -44,6 +44,12 @@ enum ArgKind {
     /// Out-parameter, e.g. `arg: &mut NV`. Read at entry, written back
     /// to the caller's SV after the body returns.
     Out(SvFlavor),
+    /// `&CStr` — NUL-terminated byte string borrowed from the SV's PV
+    /// buffer. No UTF-8 validation.
+    InCStr,
+    /// `&str` — same as InCStr but UTF-8 validated. On invalid UTF-8
+    /// the trampoline croaks.
+    InStr,
 }
 
 #[derive(Clone, Copy)]
@@ -51,6 +57,8 @@ enum RetKind {
     Scalar(SvFlavor),
     Bool,
     Unit,
+    /// `String` — the bytes are pushed via `Perl_sv_setpvn`.
+    String_,
 }
 
 struct ArgSpec {
@@ -120,13 +128,14 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #[inline]
         #body_fn_item
     };
-    // Build the body call's argument list — out-params get `&mut`.
+    // Build the body call's argument list — out-params get `&mut`,
+    // string args are passed as the borrowed slice we built locally.
     let user_arg_call: Vec<TokenStream2> = arg_specs
         .iter()
         .map(|s| {
             let n = &s.name;
             match s.kind {
-                ArgKind::In(_) => quote! { #n },
+                ArgKind::In(_) | ArgKind::InCStr | ArgKind::InStr => quote! { #n },
                 ArgKind::Out(_) => quote! { &mut #n },
             }
         })
@@ -220,19 +229,81 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let name = &spec.name;
             let svp_ident = quote::format_ident!("__svp_{}", name);
             let i_lit = syn::Index::from(i);
-            let (flavor, is_mut) = match spec.kind {
-                ArgKind::In(f) => (f, false),
-                ArgKind::Out(f) => (f, true),
-            };
-            let (rust_ty, reader) = sv_flavor_input(flavor);
-            let mut_kw = if is_mut { quote! { mut } } else { quote! {} };
-            quote! {
+            // Common preamble: capture the SV pointer so we can later
+            // write back (out-params) or pin its lifetime (string args).
+            let svp_capture = quote! {
                 let #svp_ident: *mut *mut ::libperl_rs::SV = unsafe {
                     ::libperl_rs::PL_stack_base!(my_perl).add(__ax + #i_lit)
                 };
-                let #mut_kw #name: #rust_ty = unsafe {
-                    ::libperl_rs::#reader(#myperl_arg_prefix *#svp_ident)
-                };
+            };
+            match spec.kind {
+                ArgKind::In(flavor) | ArgKind::Out(flavor) => {
+                    let is_mut = matches!(spec.kind, ArgKind::Out(_));
+                    let (rust_ty, reader) = sv_flavor_input(flavor);
+                    let mut_kw = if is_mut { quote! { mut } } else { quote! {} };
+                    quote! {
+                        #svp_capture
+                        let #mut_kw #name: #rust_ty = unsafe {
+                            ::libperl_rs::#reader(#myperl_arg_prefix *#svp_ident)
+                        };
+                    }
+                }
+                ArgKind::InCStr | ArgKind::InStr => {
+                    let pv_ident = quote::format_ident!("__pv_{}", name);
+                    let len_ident = quote::format_ident!("__pvlen_{}", name);
+                    let cstr_ident = quote::format_ident!("__cstr_{}", name);
+                    // SvPV-equivalent: handles GET magic, returns a
+                    // NUL-terminated pointer (Perl always nul-terminates
+                    // SV PV buffers) and writes the length to `lp`.
+                    let extract_pv = quote! {
+                        #svp_capture
+                        let mut #len_ident: ::libperl_rs::STRLEN = 0;
+                        let #pv_ident: *const ::core::ffi::c_char = unsafe {
+                            ::libperl_rs::Perl_sv_2pv_flags(
+                                #myperl_arg_prefix
+                                *#svp_ident,
+                                &mut #len_ident,
+                                ::libperl_rs::SV_GMAGIC,
+                            )
+                        };
+                        // Borrow the buffer as &CStr — same lifetime as
+                        // the SV's PV, which lasts at least until this
+                        // function returns.
+                        let #cstr_ident: &::core::ffi::CStr =
+                            unsafe { ::core::ffi::CStr::from_ptr(#pv_ident) };
+                    };
+                    if matches!(spec.kind, ArgKind::InCStr) {
+                        quote! {
+                            #extract_pv
+                            let #name: &::core::ffi::CStr = #cstr_ident;
+                        }
+                    } else {
+                        // &str — UTF-8 validate and croak on failure.
+                        let usage_err_lit = syn::LitCStr::new(
+                            std::ffi::CString::new(format!(
+                                "argument `{}` is not valid UTF-8",
+                                name
+                            ))
+                            .unwrap()
+                            .as_c_str(),
+                            proc_macro2::Span::call_site(),
+                        );
+                        quote! {
+                            #extract_pv
+                            let #name: &str = match #cstr_ident.to_str() {
+                                ::core::result::Result::Ok(s) => s,
+                                ::core::result::Result::Err(_) => {
+                                    unsafe {
+                                        ::libperl_rs::Perl_croak(
+                                            #myperl_arg_prefix
+                                            #usage_err_lit.as_ptr(),
+                                        );
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
             }
         })
         .collect();
@@ -260,7 +331,12 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             quote! {
                 let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only) };
                 unsafe { ::libperl_rs::#setter(#myperl_arg_prefix __targ, __ret); }
-                unsafe { *__sp = __targ; }
+                unsafe {
+                // ST(0) = __targ, *not* `*__sp = __targ` — `__sp` was
+                // captured *before* args were popped, so for items > 1
+                // it points past ST(0). The right slot is base[ax+0].
+                *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __targ;
+            }
                 __set_sp_for_n(1);
             }
         }
@@ -272,7 +348,36 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     __ret as ::libperl_rs::IV,
                 );
             }
-            unsafe { *__sp = __targ; }
+            unsafe {
+                // ST(0) = __targ, *not* `*__sp = __targ` — `__sp` was
+                // captured *before* args were popped, so for items > 1
+                // it points past ST(0). The right slot is base[ax+0].
+                *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __targ;
+            }
+            __set_sp_for_n(1);
+        },
+        RetKind::String_ => quote! {
+            let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(#myperl_arg_only) };
+            // `String` always holds valid UTF-8, so we set the SV's
+            // UTF8 flag too. `STRLEN` is `usize` on modern Perl and
+            // `IV` (long) on older ones — `as _` lets rustc pick.
+            let __bytes: &[u8] = __ret.as_bytes();
+            unsafe {
+                ::libperl_rs::Perl_sv_setpvn(
+                    #myperl_arg_prefix
+                    __targ,
+                    __bytes.as_ptr() as *const ::core::ffi::c_char,
+                    __bytes.len() as _,
+                );
+                // Mark UTF-8 by setting the flag bit on the SV.
+                (*__targ).sv_flags |= ::libperl_rs::SVf_UTF8;
+            }
+            unsafe {
+                // ST(0) = __targ, *not* `*__sp = __targ` — `__sp` was
+                // captured *before* args were popped, so for items > 1
+                // it points past ST(0). The right slot is base[ax+0].
+                *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __targ;
+            }
             __set_sp_for_n(1);
         },
         RetKind::Unit => quote! {
@@ -348,9 +453,21 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
 // ─── Type-classifier helpers ───────────────────────────────────────
 
 fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
-    if let Type::Reference(TypeReference { mutability: Some(_), elem, .. }) = ty {
-        // `&mut T` — out-parameter
-        return classify_scalar(elem).map(ArgKind::Out);
+    if let Type::Reference(TypeReference { mutability, elem, .. }) = ty {
+        if mutability.is_some() {
+            // `&mut T` — out-parameter (only scalar flavors supported).
+            return classify_scalar(elem).map(ArgKind::Out);
+        }
+        // `&T` — currently only `&str` and `&CStr` are recognised.
+        if let Type::Path(TypePath { path, .. }) = elem.as_ref() {
+            let last = path.segments.last()?;
+            return match last.ident.to_string().as_str() {
+                "str" => Some(ArgKind::InStr),
+                "CStr" => Some(ArgKind::InCStr),
+                _ => None,
+            };
+        }
+        return None;
     }
     classify_scalar(ty).map(ArgKind::In)
 }
@@ -363,8 +480,10 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
     }
     if let Type::Path(TypePath { path, .. }) = ty {
         let last = path.segments.last()?;
-        if last.ident == "bool" {
-            return Some(RetKind::Bool);
+        match last.ident.to_string().as_str() {
+            "bool" => return Some(RetKind::Bool),
+            "String" => return Some(RetKind::String_),
+            _ => {}
         }
     }
     classify_scalar(ty).map(RetKind::Scalar)

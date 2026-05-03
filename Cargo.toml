@@ -12,7 +12,7 @@ keywords = ["perl"]
 license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
 
 [workspace]
-members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros", "xs-demo-mytest"]
+members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros", "xs-demo-mytest", "xs-demo-mytest2"]
 
 [badges]
 travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
