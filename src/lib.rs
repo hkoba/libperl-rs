@@ -11,6 +11,7 @@
 #![allow(non_upper_case_globals)]
 
 pub use libperl_sys::*;
+pub use libperl_macros::*;
 
 pub mod perl;
 pub use perl::*;
