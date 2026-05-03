@@ -74,9 +74,30 @@ pub fn xs_boot(input: TokenStream) -> TokenStream {
     let boot_ident = Ident::new(&boot_ident_str, parsed.package.span());
 
     // `Perl_xs_boot_epilog`'s `ax` parameter is `isize` in modern Perl
-    // (5.40+) but was `I32` (= `i32`) in older Perls. Emit a usize literal
-    // and `as _` so rustc infers the right integer type per perl version.
+    // (5.40+) but was `I32` (= `i32`) in older Perls. Emit a usize
+    // literal and `as _` so rustc infers the right integer type.
     let n_subs = parsed.subs.len();
+
+    // libperl-macros' `build.rs` sets `cfg(perl_useithreads)` at proc-
+    // macro compile time. In threaded build the boot fn takes my_perl
+    // and forwards it to every Perl_* call; in non-threaded build the
+    // FFI signatures don't have a my_perl parameter at all.
+    let threaded = cfg!(perl_useithreads);
+
+    let boot_params = if threaded {
+        quote! {
+            my_perl: *mut ::libperl_rs::PerlInterpreter,
+            _cv: *mut ::libperl_rs::CV,
+        }
+    } else {
+        quote! { _cv: *mut ::libperl_rs::CV, }
+    };
+
+    let null_check = if threaded {
+        quote! { if my_perl.is_null() { return; } }
+    } else {
+        quote! {}
+    };
 
     let registrations = parsed.subs.iter().map(|sub| {
         let perl_name = format!("{pkg}::{sub}");
@@ -84,28 +105,48 @@ pub fn xs_boot(input: TokenStream) -> TokenStream {
             std::ffi::CString::new(perl_name).expect("interior nul in sub name");
         let perl_name_lit =
             syn::LitCStr::new(perl_name_cstring.as_c_str(), sub.span());
-        quote! {
-            unsafe {
-                ::libperl_rs::Perl_newXS_deffile(
-                    my_perl,
-                    #perl_name_lit.as_ptr(),
-                    ::core::option::Option::Some(#sub),
-                );
+        if threaded {
+            quote! {
+                unsafe {
+                    ::libperl_rs::Perl_newXS_deffile(
+                        my_perl,
+                        #perl_name_lit.as_ptr(),
+                        ::core::option::Option::Some(#sub),
+                    );
+                }
+            }
+        } else {
+            quote! {
+                unsafe {
+                    ::libperl_rs::Perl_newXS_deffile(
+                        #perl_name_lit.as_ptr(),
+                        ::core::option::Option::Some(#sub),
+                    );
+                }
             }
         }
     });
 
-    let expanded = quote! {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn #boot_ident(
-            my_perl: *mut ::libperl_rs::PerlInterpreter,
-            _cv: *mut ::libperl_rs::CV,
-        ) {
-            if my_perl.is_null() { return; }
-            #( #registrations )*
+    let epilog_call = if threaded {
+        quote! {
             unsafe {
                 ::libperl_rs::Perl_xs_boot_epilog(my_perl, #n_subs as _);
             }
+        }
+    } else {
+        quote! {
+            unsafe {
+                ::libperl_rs::Perl_xs_boot_epilog(#n_subs as _);
+            }
+        }
+    };
+
+    let expanded = quote! {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn #boot_ident( #boot_params ) {
+            #null_check
+            #( #registrations )*
+            #epilog_call
         }
     };
     expanded.into()

@@ -123,7 +123,70 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .expect("usage string contains interior nul");
     let usage_lit = syn::LitCStr::new(usage_cstring.as_c_str(), proc_macro2::Span::call_site());
 
-    // Per-argument extraction
+    // ─── Threading-mode-dependent fragments ────────────────────────
+    // libperl-macros' `build.rs` sets `cfg(perl_useithreads)` at proc-
+    // macro compile time, so we can pick different code-gen paths here.
+    // - threaded:     `Perl_*(my_perl, ...)`, `(*my_perl).I<field>`
+    // - non-threaded: `Perl_*(...)`,          `$crate::PL_<global>`
+    let threaded = cfg!(perl_useithreads);
+
+    // (a) trampoline parameter list
+    let trampoline_params = if threaded {
+        quote! {
+            my_perl: *mut ::libperl_rs::PerlInterpreter,
+            cv: *mut ::libperl_rs::CV,
+        }
+    } else {
+        quote! { cv: *mut ::libperl_rs::CV, }
+    };
+
+    // (b) my_perl null-check (only relevant in threaded build).
+    // In non-threaded build, `my_perl` is not a trampoline parameter, so
+    // we synthesise a null stub so that `PL_xxx!(my_perl)` macros inside
+    // the trampoline body still parse — they discard the stub and use
+    // the global `PL_xxx` static directly.
+    let null_check = if threaded {
+        quote! { if my_perl.is_null() { return; } }
+    } else {
+        quote! {
+            #[allow(unused_variables)]
+            let my_perl: *mut ::libperl_rs::PerlInterpreter = ::core::ptr::null_mut();
+        }
+    };
+
+    // (c) write to markstack_ptr (POPMARK)
+    let pop_mark = if threaded {
+        quote! {
+            unsafe {
+                (*my_perl).Imarkstack_ptr = (*my_perl).Imarkstack_ptr.sub(1);
+            }
+        }
+    } else {
+        quote! {
+            unsafe {
+                ::libperl_rs::PL_markstack_ptr = ::libperl_rs::PL_markstack_ptr.sub(1);
+            }
+        }
+    };
+
+    // (d) SP writer closure body
+    let sp_writer = if threaded {
+        quote! {
+            let __set_sp_for_n = |n: usize| unsafe {
+                (*my_perl).Istack_sp =
+                    ::libperl_rs::PL_stack_base!(my_perl).add(__ax + n - 1);
+            };
+        }
+    } else {
+        quote! {
+            let __set_sp_for_n = |n: usize| unsafe {
+                ::libperl_rs::PL_stack_sp =
+                    ::libperl_rs::PL_stack_base!(my_perl).add(__ax + n - 1);
+            };
+        }
+    };
+
+    // (e) per-argument extraction — `SvIV(my_perl, sv)` vs `SvIV(sv)`
     let arg_extractions: Vec<TokenStream2> = arg_specs
         .iter()
         .enumerate()
@@ -131,29 +194,54 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let name = &spec.name;
             let i_lit = syn::Index::from(i);
             match spec.kind {
-                ArgKind::Iv => quote! {
-                    let #name: ::libperl_rs::IV = unsafe {
-                        let svp = ::libperl_rs::PL_stack_base!(my_perl).add(__ax + #i_lit);
-                        ::libperl_rs::SvIV(my_perl, *svp)
+                ArgKind::Iv => {
+                    let sviv_call = if threaded {
+                        quote! { ::libperl_rs::SvIV(my_perl, *svp) }
+                    } else {
+                        quote! { ::libperl_rs::SvIV(*svp) }
                     };
-                },
+                    quote! {
+                        let #name: ::libperl_rs::IV = unsafe {
+                            let svp = ::libperl_rs::PL_stack_base!(my_perl)
+                                .add(__ax + #i_lit);
+                            #sviv_call
+                        };
+                    }
+                }
             }
         })
         .collect();
 
-    // Return value push
+    // (f) return value push — `Perl_sv_newmortal(my_perl)` vs `()`
+    let new_mortal = if threaded {
+        quote! { ::libperl_rs::Perl_sv_newmortal(my_perl) }
+    } else {
+        quote! { ::libperl_rs::Perl_sv_newmortal() }
+    };
+    let setiv_call_iv = if threaded {
+        quote! { ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret); }
+    } else {
+        quote! { ::libperl_rs::Perl_sv_setiv(__targ, __ret); }
+    };
+    let setiv_call_bool = if threaded {
+        quote! {
+            ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret as ::libperl_rs::IV);
+        }
+    } else {
+        quote! {
+            ::libperl_rs::Perl_sv_setiv(__targ, __ret as ::libperl_rs::IV);
+        }
+    };
     let return_push: TokenStream2 = match ret_kind {
         RetKind::Iv => quote! {
-            let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(my_perl) };
-            unsafe { ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret); }
+            let __targ = unsafe { #new_mortal };
+            unsafe { #setiv_call_iv }
             unsafe { *__sp = __targ; }
             __set_sp_for_n(1);
         },
         RetKind::Bool => quote! {
-            let __targ = unsafe { ::libperl_rs::Perl_sv_newmortal(my_perl) };
-            unsafe {
-                ::libperl_rs::Perl_sv_setiv(my_perl, __targ, __ret as ::libperl_rs::IV);
-            }
+            let __targ = unsafe { #new_mortal };
+            unsafe { #setiv_call_bool }
             unsafe { *__sp = __targ; }
             __set_sp_for_n(1);
         },
@@ -168,13 +256,8 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #[unsafe(no_mangle)]
         #[allow(unused_variables, unreachable_code)]
-        pub extern "C" fn #fn_name(
-            my_perl: *mut ::libperl_rs::PerlInterpreter,
-            cv: *mut ::libperl_rs::CV,
-        ) {
-            if my_perl.is_null() {
-                return;
-            }
+        pub extern "C" fn #fn_name( #trampoline_params ) {
+            #null_check
 
             // dXSARGS-equivalent: pop the mark, derive ax / items / sp.
             // Don't pin the offset type — `Stack_off_t` was introduced in
@@ -184,10 +267,7 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let __mark_ax = unsafe {
                 *::libperl_rs::PL_markstack_ptr!(my_perl)
             };
-            // POPMARK: decrement markstack_ptr
-            unsafe {
-                (*my_perl).Imarkstack_ptr = (*my_perl).Imarkstack_ptr.sub(1);
-            }
+            #pop_mark
             let __mark = unsafe {
                 ::libperl_rs::PL_stack_base!(my_perl).add(__mark_ax as usize)
             };
@@ -212,10 +292,7 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             // SP setter helper, centralised so the off-by-one is not at
             // each call site
-            let __set_sp_for_n = |n: usize| unsafe {
-                (*my_perl).Istack_sp =
-                    ::libperl_rs::PL_stack_base!(my_perl).add(__ax + n - 1);
-            };
+            #sp_writer
 
             // Return value push
             #return_push
