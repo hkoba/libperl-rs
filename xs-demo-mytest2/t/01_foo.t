@@ -1,7 +1,5 @@
-use strict;
-use warnings;
 use utf8;
-use Test::More;
+use Test2::V0;
 
 use Mytest2;
 
@@ -27,10 +25,7 @@ is(Mytest2::shout("HelloWorld"), "HELLOWORLD", 'mixed case → all caps');
 is(Mytest2::shout("rust"), "RUST", 'rust → RUST');
 
 # Arity check still works after type extension.
-eval { Mytest2::foo(1, 2) };
-like($@, qr/Usage:/, 'wrong-arity foo croaks');
-
-eval { Mytest2::shout() };
-like($@, qr/Usage:/, 'no-arg shout croaks');
+like(dies { Mytest2::foo(1, 2) }, qr/Usage:/, 'wrong-arity foo croaks');
+like(dies { Mytest2::shout() },   qr/Usage:/, 'no-arg shout croaks');
 
 done_testing;

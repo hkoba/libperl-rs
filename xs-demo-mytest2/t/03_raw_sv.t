@@ -1,6 +1,4 @@
-use strict;
-use warnings;
-use Test::More;
+use Test2::V0;
 
 use Mytest2;
 
@@ -9,7 +7,7 @@ use Mytest2;
     is(Mytest2::identity(42),       42,       'IV passthrough');
     is(Mytest2::identity("hello"),  "hello",  'PV passthrough');
     is(Mytest2::identity(3.14),     3.14,     'NV passthrough');
-    is(Mytest2::identity(undef),    undef,    'undef passthrough');
+    is(Mytest2::identity(undef),    U(),      'undef passthrough');
 }
 
 # Refcount: identity should not leak. The arg's refcount stays 1
@@ -28,21 +26,15 @@ use Mytest2;
 
 # maybe_sv: Some / None paths.
 {
-    is(Mytest2::maybe_sv("kept", 1), "kept", 'Some branch returns input');
-    is(Mytest2::maybe_sv("dropped", 0), undef, 'None branch returns undef');
+    is(Mytest2::maybe_sv("kept", 1),    "kept", 'Some branch returns input');
+    is(Mytest2::maybe_sv("dropped", 0), U(),    'None branch returns undef');
 }
 
 # undef returned from None should be the actual undef, not 0/"".
-{
-    my $r = Mytest2::maybe_sv(123, 0);
-    ok(!defined($r), 'maybe_sv(_, 0) is undef');
-}
+is(Mytest2::maybe_sv(123, 0), U(), 'maybe_sv(_, 0) is undef');
 
 # Arity check still works.
-eval { Mytest2::identity() };
-like($@, qr/Usage:/, 'no-arg identity croaks');
-
-eval { Mytest2::maybe_sv(1) };
-like($@, qr/Usage:/, 'wrong-arity maybe_sv croaks');
+like(dies { Mytest2::identity() },  qr/Usage:/, 'no-arg identity croaks');
+like(dies { Mytest2::maybe_sv(1) }, qr/Usage:/, 'wrong-arity maybe_sv croaks');
 
 done_testing;

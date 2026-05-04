@@ -27,6 +27,9 @@ jobs:
       with:
         perl-version: ${{ matrix.perl-version }}
         multi-thread: ${{ matrix.threaded }}
+        install-modules-with: cpanm
+        install-modules: |
+          Test2::Suite
 
     - name: Debug include paths
       run: |

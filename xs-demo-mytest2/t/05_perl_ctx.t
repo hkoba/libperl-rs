@@ -1,7 +1,5 @@
-use strict;
-use warnings;
 use utf8;
-use Test::More;
+use Test2::V0;
 
 use Mytest2;
 
@@ -22,16 +20,13 @@ cmp_ok(Mytest2::wrap_nv(3.5),  '==', 3.5,   'wrap_nv: positive NV');
 cmp_ok(Mytest2::wrap_nv(-0.25),'==', -0.25, 'wrap_nv: negative NV');
 
 is(Mytest2::wrap_pv("hello"),  "hello",  'wrap_pv: ASCII');
-is(Mytest2::wrap_pv("日本語"),  "日本語",  'wrap_pv: UTF-8 round-trip');
+is(Mytest2::wrap_pv("日本語"), "日本語",  'wrap_pv: UTF-8 round-trip');
 ok(utf8::is_utf8(Mytest2::wrap_pv("日本語")), 'wrap_pv: UTF-8 flag set');
 
 # Arity check still works through the new `&Perl` plumbing — the
 # context arg must NOT consume a Perl-side stack slot.
-eval { Mytest2::wrap_iv() };
-like($@, qr/Usage:/, 'wrap_iv with no args croaks');
-
-eval { Mytest2::wrap_iv(1, 2) };
-like($@, qr/Usage:/, 'wrap_iv with extra arg croaks');
+like(dies { Mytest2::wrap_iv() },     qr/Usage:/, 'wrap_iv with no args croaks');
+like(dies { Mytest2::wrap_iv(1, 2) }, qr/Usage:/, 'wrap_iv with extra arg croaks');
 
 # 1000-call leak smoke check.
 {

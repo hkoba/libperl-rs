@@ -1,6 +1,4 @@
-use strict;
-use warnings;
-use Test::More;
+use Test2::V0;
 
 use Mytest;
 
@@ -39,15 +37,12 @@ use Mytest;
 {
     my $x = 7.7;
     my $rc = Mytest::round($x);
-    is($rc, undef,  'round returns nothing');
-    is($x,  8,      '... but mutates its argument');
+    is($rc, U(),  'round returns nothing');
+    is($x,  8,    '... but mutates its argument');
 }
 
 # Arity check: wrong number of args still croaks via Perl_croak_xs_usage.
-eval { Mytest::round() };
-like($@, qr/Usage:/, 'no-arg round croaks with Usage:');
-
-eval { Mytest::round(1, 2) };
-like($@, qr/Usage:/, 'two-arg round croaks with Usage:');
+like(dies { Mytest::round() },     qr/Usage:/, 'no-arg round croaks with Usage:');
+like(dies { Mytest::round(1, 2) }, qr/Usage:/, 'two-arg round croaks with Usage:');
 
 done_testing;

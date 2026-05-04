@@ -1,7 +1,4 @@
-use strict;
-use warnings;
-use utf8;
-use Test::More;
+use Test2::V0;
 
 use Mytest2;
 
@@ -11,36 +8,33 @@ use Mytest2;
 {
     my $r = Mytest2::make_pair();
     is(ref($r), 'ARRAY', 'make_pair: returns array ref');
-    is_deeply($r, [1, 2], 'make_pair: contents are [1, 2]');
+    is($r, [1, 2], 'make_pair: contents are [1, 2]');
 }
 
 # Each call gets a fresh array (no aliasing).
 {
     my $r1 = Mytest2::make_pair();
     my $r2 = Mytest2::make_pair();
-    isnt($r1, $r2, 'make_pair: distinct refs across calls');
+    # Test2::V0's `isnt` is structural; we want pointer inequality, so
+    # stringify the refs (`ARRAY(0x...)`) and compare those.
+    isnt("$r1", "$r2", 'make_pair: distinct refs across calls');
     push @$r1, 99;
-    is_deeply($r2, [1, 2], 'make_pair: mutating r1 does not touch r2');
+    is($r2, [1, 2], 'make_pair: mutating r1 does not touch r2');
 }
 
 # `make_record` returns a hash reference.
 {
     my $r = Mytest2::make_record();
-    is(ref($r), 'HASH', 'make_record: returns hash ref');
-    is($r->{name}, 'ada',  'make_record: name is "ada"');
-    is($r->{year}, 1815,   'make_record: year is 1815');
-    is_deeply([sort keys %$r], [qw(name year)], 'make_record: exactly two keys');
+    is($r, hash {
+        field name => 'ada';
+        field year => 1815;
+        end;
+    }, 'make_record: { name => "ada", year => 1815 }');
 }
 
 # `Option<Rv<Av>>` — Some / None branches.
-{
-    my $r = Mytest2::maybe_pair(1);
-    is_deeply($r, [10, 20], 'maybe_pair(1): Some -> arrayref');
-}
-{
-    my $r = Mytest2::maybe_pair(0);
-    ok(!defined($r), 'maybe_pair(0): None -> undef');
-}
+is(Mytest2::maybe_pair(1), [10, 20], 'maybe_pair(1): Some -> arrayref');
+is(Mytest2::maybe_pair(0), U(),      'maybe_pair(0): None -> undef');
 
 # Refcount sanity: 1000 round-trips of each constructor should not
 # leak memory or abort.
@@ -52,10 +46,7 @@ use Mytest2;
 }
 
 # Arity checks (context arg must NOT consume a slot).
-eval { Mytest2::make_pair(99) };
-like($@, qr/Usage:/, 'make_pair with extra arg croaks');
-
-eval { Mytest2::maybe_pair() };
-like($@, qr/Usage:/, 'maybe_pair with no arg croaks');
+like(dies { Mytest2::make_pair(99) }, qr/Usage:/, 'make_pair with extra arg croaks');
+like(dies { Mytest2::maybe_pair() },  qr/Usage:/, 'maybe_pair with no arg croaks');
 
 done_testing;
