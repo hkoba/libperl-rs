@@ -50,6 +50,10 @@ enum ArgKind {
     /// `&str` — same as InCStr but UTF-8 validated. On invalid UTF-8
     /// the trampoline croaks.
     InStr,
+    /// `*mut SV` — raw pass-through of the caller's SV pointer.
+    /// No conversion, no magic, no refcount fiddling. The user body
+    /// is responsible for any further unpacking.
+    InRawSv,
 }
 
 #[derive(Clone)]
@@ -67,6 +71,15 @@ enum RetKind {
     /// `Result<T, String>` — `Ok(v)` proceeds with the inner kind's
     /// push path; `Err(s)` calls `Perl_croak` with `s` as the message.
     ResultErrString(Box<RetKind>),
+    /// `*mut SV` — raw pass-through of an SV pointer the body
+    /// produced. The trampoline `SvREFCNT_inc`s + mortalizes (the
+    /// XS T_SV typemap convention) so that newly-created and
+    /// borrowed SVs both behave correctly.
+    RawSv,
+    /// `Option<*mut SV>` — `Some(sv)` behaves like `RawSv`; `None`
+    /// pushes `PL_sv_undef` (immortal global, no refcount fiddling).
+    /// XSRETURN_UNDEF equivalent in idiomatic Rust.
+    OptionRawSv,
 }
 
 struct ArgSpec {
@@ -137,13 +150,16 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #body_fn_item
     };
     // Build the body call's argument list — out-params get `&mut`,
-    // string args are passed as the borrowed slice we built locally.
+    // string args are passed as the borrowed slice we built locally,
+    // raw SV args pass through directly.
     let user_arg_call: Vec<TokenStream2> = arg_specs
         .iter()
         .map(|s| {
             let n = &s.name;
             match s.kind {
-                ArgKind::In(_) | ArgKind::InCStr | ArgKind::InStr => quote! { #n },
+                ArgKind::In(_) | ArgKind::InCStr | ArgKind::InStr | ArgKind::InRawSv => {
+                    quote! { #n }
+                }
                 ArgKind::Out(_) => quote! { &mut #n },
             }
         })
@@ -215,14 +231,22 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // (d) SP writer closure body
     let sp_writer = if threaded {
         quote! {
-            let __set_sp_for_n = |n: usize| unsafe {
+            // `move` so the closure copies `my_perl` (it's `Copy`)
+            // rather than borrowing it — otherwise later raw-place
+            // expressions like `&raw mut (*my_perl).Isv_undef` would
+            // collide with the closure's outstanding borrow.
+            let __set_sp_for_n = move |n: usize| unsafe {
                 (*my_perl).Istack_sp =
                     ::libperl_rs::PL_stack_base!(my_perl).add(__ax + n - 1);
             };
         }
     } else {
         quote! {
-            let __set_sp_for_n = |n: usize| unsafe {
+            // `move` so the closure copies `my_perl` (it's `Copy`)
+            // rather than borrowing it — otherwise later raw-place
+            // expressions like `&raw mut (*my_perl).Isv_undef` would
+            // collide with the closure's outstanding borrow.
+            let __set_sp_for_n = move |n: usize| unsafe {
                 ::libperl_rs::PL_stack_sp =
                     ::libperl_rs::PL_stack_base!(my_perl).add(__ax + n - 1);
             };
@@ -254,6 +278,13 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         let #mut_kw #name: #rust_ty = unsafe {
                             ::libperl_rs::#reader(#myperl_arg_prefix *#svp_ident)
                         };
+                    }
+                }
+                ArgKind::InRawSv => {
+                    // Pass through the raw SV pointer; no Sv* call.
+                    quote! {
+                        #svp_capture
+                        let #name: *mut ::libperl_rs::SV = unsafe { *#svp_ident };
                     }
                 }
                 ArgKind::InCStr | ArgKind::InStr => {
@@ -490,6 +521,53 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             __set_sp_for_n(__n);
         },
         RetKind::ResultErrString(_) => unreachable!("Result is unwrapped before push"),
+        RetKind::RawSv => quote! {
+            // T_SV typemap convention: refcount-inc the SV (so caller-
+            // owned and freshly-created SVs both behave) and put it on
+            // the mortal stack so it's freed at end of expression.
+            let __sv: *mut ::libperl_rs::SV = __ret;
+            unsafe {
+                let __mortal = ::libperl_rs::Perl_sv_2mortal(
+                    #myperl_arg_prefix
+                    ::libperl_rs::Perl_SvREFCNT_inc(__sv),
+                );
+                *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __mortal;
+            }
+            __set_sp_for_n(1);
+        },
+        RetKind::OptionRawSv => {
+            // For `None` we push `&PL_sv_undef`. The address-of the
+            // immortal undef SV differs by build mode:
+            //   threaded:     `&raw mut (*my_perl).Isv_undef`
+            //   non-threaded: `&raw mut ::libperl_rs::PL_sv_undef`
+            let undef_addr: TokenStream2 = if threaded {
+                quote! {
+                    unsafe { &raw mut (*my_perl).Isv_undef as *mut ::libperl_rs::SV }
+                }
+            } else {
+                quote! {
+                    unsafe {
+                        &raw mut ::libperl_rs::PL_sv_undef as *mut ::libperl_rs::SV
+                    }
+                }
+            };
+            quote! {
+                let __pushed: *mut ::libperl_rs::SV = match __ret {
+                    ::core::option::Option::Some(__sv) => unsafe {
+                        ::libperl_rs::Perl_sv_2mortal(
+                            #myperl_arg_prefix
+                            ::libperl_rs::Perl_SvREFCNT_inc(__sv),
+                        )
+                    },
+                    // `PL_sv_undef` is immortal — no INC / mortalize.
+                    ::core::option::Option::None => #undef_addr,
+                };
+                unsafe {
+                    *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __pushed;
+                }
+                __set_sp_for_n(1);
+            }
+        }
     };
 
     let return_push: TokenStream2 = quote! {
@@ -581,6 +659,9 @@ fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
         }
         return None;
     }
+    if is_raw_sv_ptr(ty) {
+        return Some(ArgKind::InRawSv);
+    }
     classify_scalar(ty).map(ArgKind::In)
 }
 
@@ -590,6 +671,9 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
             return Some(RetKind::Unit);
         }
     }
+    if is_raw_sv_ptr(ty) {
+        return Some(RetKind::RawSv);
+    }
     if let Type::Path(TypePath { path, .. }) = ty {
         let last = path.segments.last()?;
         match last.ident.to_string().as_str() {
@@ -597,10 +681,35 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
             "String" => return Some(RetKind::String_),
             "Vec" => return classify_vec_inner(&last.arguments),
             "Result" => return classify_result_inner(&last.arguments),
+            "Option" => return classify_option_inner(&last.arguments),
             _ => {}
         }
     }
     classify_scalar(ty).map(RetKind::Scalar)
+}
+
+/// `Option<T>` — currently only `Option<*mut SV>` is recognised
+/// (Phase 3.10a). Future phases will accept `Option<Sv>`,
+/// `Option<Rv<T>>`, etc.
+fn classify_option_inner(args: &syn::PathArguments) -> Option<RetKind> {
+    let inner = generic_arg_n(args, 0)?;
+    if is_raw_sv_ptr(inner) {
+        return Some(RetKind::OptionRawSv);
+    }
+    None
+}
+
+/// True when `ty` is `*mut SV` (path's last segment is `SV`,
+/// regardless of leading `::libperl_rs::` qualification).
+fn is_raw_sv_ptr(ty: &Type) -> bool {
+    let Type::Ptr(p) = ty else { return false };
+    if p.const_token.is_some() || p.mutability.is_none() {
+        return false;
+    }
+    let Type::Path(TypePath { path, .. }) = p.elem.as_ref() else {
+        return false;
+    };
+    path.segments.last().is_some_and(|s| s.ident == "SV")
 }
 
 /// `Vec<T>` — inspect the single generic arg.

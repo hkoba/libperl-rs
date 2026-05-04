@@ -7,7 +7,7 @@
 
 use std::ffi::CStr;
 
-use libperl_rs::{xs_boot, xs_sub, IV, NV};
+use libperl_rs::{xs_boot, xs_sub, IV, NV, SV};
 
 /// `Mytest2::foo($i, $l, $str)` — perlxstut EXAMPLE 4 shape.
 ///
@@ -69,7 +69,22 @@ fn words(s: &str) -> Vec<String> {
     s.split_whitespace().map(|w| w.to_string()).collect()
 }
 
+/// `Mytest2::identity($sv)` — return the input SV unchanged.
+/// Demonstrates `*mut SV` raw passthrough on both arg and return.
+#[xs_sub]
+fn identity(sv: *mut SV) -> *mut SV {
+    sv
+}
+
+/// `Mytest2::maybe_sv($sv, $keep)` — if `$keep` is true, return `$sv`,
+/// else return `undef`. Demonstrates `Option<*mut SV>` mapping to
+/// `XSRETURN_UNDEF` on `None`.
+#[xs_sub]
+fn maybe_sv(sv: *mut SV, keep: IV) -> Option<*mut SV> {
+    if keep != 0 { Some(sv) } else { None }
+}
+
 xs_boot! {
     package = "Mytest2";
-    subs = [foo, shout, byte_len, statfs, words];
+    subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv];
 }
