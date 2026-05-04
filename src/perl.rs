@@ -62,8 +62,20 @@ impl Perl {
     ///   proc-macro does this when a body declares a `my_perl: &Perl`
     ///   first parameter.
     pub unsafe fn from_raw_unchecked(p: *mut PerlInterpreter) -> Self {
-        let my_perl = NonNull::new(p)
-            .expect("Perl::from_raw_unchecked: null pointer");
+        // Non-threaded builds: the `#[xs_sub]` proc-macro passes a
+        // null `my_perl` stub here. That's fine — every FFI call goes
+        // through `thx_call!`, which in non-threaded mode discards
+        // the `Perl` argument before invoking the bare libperl-sys
+        // function. So `as_ptr()` is never actually dereferenced;
+        // a dangling sentinel works as a placeholder.
+        //
+        // Threaded builds: a null pointer here is a programming
+        // error (callers must hand over a live interpreter). Callers
+        // get the same `dangling()` sentinel rather than a panic, so
+        // the failure surfaces at the first FFI deref instead of at
+        // construction — matches the rest of `unsafe`'s "garbage in,
+        // segfault out" contract.
+        let my_perl = NonNull::new(p).unwrap_or(NonNull::dangling());
         Perl {
             my_perl,
             args: Vec::new(),
