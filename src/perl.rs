@@ -51,6 +51,26 @@ impl Perl {
         self.my_perl.as_ptr()
     }
 
+    /// Wrap a raw `*mut PerlInterpreter` as a borrowed `Perl`.
+    ///
+    /// # Safety
+    /// - `p` must point to a live, valid interpreter.
+    /// - The returned `Perl` MUST NOT be dropped: its `Drop` runs
+    ///   `perl_destruct`, tearing down an interpreter this constructor
+    ///   does not own. The intended usage is to wrap in
+    ///   `core::mem::ManuallyDrop` immediately. The `#[xs_sub]`
+    ///   proc-macro does this when a body declares a `my_perl: &Perl`
+    ///   first parameter.
+    pub unsafe fn from_raw_unchecked(p: *mut PerlInterpreter) -> Self {
+        let my_perl = NonNull::new(p)
+            .expect("Perl::from_raw_unchecked: null pointer");
+        Perl {
+            my_perl,
+            args: Vec::new(),
+            env: Vec::new(),
+        }
+    }
+
     /// `perl_parse` with an explicit args / envp slice.
     pub fn parse<S: AsRef<str>>(&mut self, args: &[S], envp: &[S]) -> i32 {
         self.args = args

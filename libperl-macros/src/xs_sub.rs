@@ -58,6 +58,12 @@ enum ArgKind {
     /// but encodes the non-null invariant in the type. Constructed
     /// via `Sv::from_raw_unchecked` from the stack pointer.
     InSv,
+    /// `&Perl` — explicit interpreter context (Phase 3.10c). Does NOT
+    /// consume a Perl-side stack slot; the trampoline materializes a
+    /// borrowed `Perl` from `my_perl` and passes a reference to it.
+    /// By convention this is the first parameter and is named
+    /// `my_perl` (see `docs/plan/README.md` §3.8).
+    PerlContext,
 }
 
 #[derive(Clone)]
@@ -118,10 +124,20 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         return error(
                             ty,
                             "`#[xs_sub]` argument must be `IV` / `UV` / `NV` \
-                             or `&mut IV` / `&mut UV` / `&mut NV`",
+                             / `&mut IV|UV|NV` / `&CStr` / `&str` / `*mut SV` \
+                             / `Sv` / `&Perl`",
                         );
                     }
                 };
+                // `&Perl` must be the first parameter — naming
+                // convention §3.8 and to keep the trampoline simple.
+                if matches!(kind, ArgKind::PerlContext) && !arg_specs.is_empty() {
+                    return error(
+                        ty,
+                        "`&Perl` (interpreter context) must be the first \
+                         parameter of an `#[xs_sub]`",
+                    );
+                }
                 arg_specs.push(ArgSpec { name, kind });
             }
         }
@@ -173,16 +189,42 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 | ArgKind::InRawSv
                 | ArgKind::InSv => quote! { #n },
                 ArgKind::Out(_) => quote! { &mut #n },
+                // The trampoline injects a `__perl_ref: &Perl` local
+                // before calling the body fn (see `perl_ref_setup`).
+                ArgKind::PerlContext => quote! { __perl_ref },
             }
         })
         .collect();
 
-    let arg_count = arg_specs.len();
+    // Stack-arg count (PerlContext does not consume a slot). Used both
+    // for the arity check and for per-arg stack-index assignment below.
+    let arg_count = arg_specs
+        .iter()
+        .filter(|s| !matches!(s.kind, ArgKind::PerlContext))
+        .count();
     let usage_str = arg_specs
         .iter()
+        .filter(|a| !matches!(a.kind, ArgKind::PerlContext))
         .map(|a| a.name.to_string())
         .collect::<Vec<_>>()
         .join(", ");
+    let needs_perl_ref = arg_specs
+        .iter()
+        .any(|s| matches!(s.kind, ArgKind::PerlContext));
+
+    // ManuallyDrop wrapper because `Perl::from_raw_unchecked` produces
+    // a `Perl` whose `Drop` would call `perl_destruct` — we don't own
+    // the interpreter here, so dropping must be suppressed.
+    let perl_ref_setup: TokenStream2 = if needs_perl_ref {
+        quote! {
+            let __perl_ctx_storage = ::core::mem::ManuallyDrop::new(unsafe {
+                ::libperl_rs::Perl::from_raw_unchecked(my_perl)
+            });
+            let __perl_ref: &::libperl_rs::Perl = &*__perl_ctx_storage;
+        }
+    } else {
+        quote! {}
+    };
     let usage_cstring = std::ffi::CString::new(usage_str)
         .expect("usage string contains interior nul");
     let usage_lit = syn::LitCStr::new(usage_cstring.as_c_str(), proc_macro2::Span::call_site());
@@ -265,14 +307,20 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // (e) per-argument extraction
+    // (e) per-argument extraction. Stack-slot index advances only for
+    // args that actually consume a Perl-side slot — `PerlContext` does
+    // not, so it gets a no-op extraction.
+    let mut __stack_idx: usize = 0;
     let arg_extractions: Vec<TokenStream2> = arg_specs
         .iter()
-        .enumerate()
-        .map(|(i, spec)| {
+        .map(|spec| {
+            if matches!(spec.kind, ArgKind::PerlContext) {
+                return quote! {};
+            }
             let name = &spec.name;
             let svp_ident = quote::format_ident!("__svp_{}", name);
-            let i_lit = syn::Index::from(i);
+            let i_lit = syn::Index::from(__stack_idx);
+            __stack_idx += 1;
             // Common preamble: capture the SV pointer so we can later
             // write back (out-params) or pin its lifetime (string args).
             let svp_capture = quote! {
@@ -310,6 +358,7 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         };
                     }
                 }
+                ArgKind::PerlContext => unreachable!("handled by early return above"),
                 ArgKind::InCStr | ArgKind::InStr => {
                     let pv_ident = quote::format_ident!("__pv_{}", name);
                     let len_ident = quote::format_ident!("__pvlen_{}", name);
@@ -657,6 +706,11 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // out-params, so we can write the new value back at the end).
             #( #arg_extractions )*
 
+            // Materialize the borrowed `Perl` context if any arg needs
+            // it. Wrapped in `ManuallyDrop` so we don't tear down an
+            // interpreter we don't own.
+            #perl_ref_setup
+
             // User body — invoked via the hidden helper fn so the user's
             // typed signature is preserved for tooling and import-usage
             // analysis. Bound as `__raw` so the Result-unwrap layer
@@ -686,12 +740,13 @@ fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
             // `&mut T` — out-parameter (only scalar flavors supported).
             return classify_scalar(elem).map(ArgKind::Out);
         }
-        // `&T` — currently only `&str` and `&CStr` are recognised.
+        // `&T` — `&str`, `&CStr`, or `&Perl` (the interpreter context).
         if let Type::Path(TypePath { path, .. }) = elem.as_ref() {
             let last = path.segments.last()?;
             return match last.ident.to_string().as_str() {
                 "str" => Some(ArgKind::InStr),
                 "CStr" => Some(ArgKind::InCStr),
+                "Perl" => Some(ArgKind::PerlContext),
                 _ => None,
             };
         }

@@ -18,6 +18,8 @@ use std::ptr::NonNull;
 
 use libperl_sys::{PerlInterpreter, SV};
 
+use crate::Perl;
+
 /// A non-null pointer to a Perl `SV`. Same ABI as `*mut SV` — `NonNull`
 /// is a `#[repr(transparent)]` wrapper that just encodes the
 /// non-null invariant in the type. See `docs/plan/README.md` §3.4
@@ -59,6 +61,64 @@ impl Sv {
     #[inline]
     pub fn as_ptr(&self) -> *mut SV {
         self.0.as_ptr()
+    }
+
+    // ── Constructors (Phase 3.10c) ─────────────────────────────────
+    //
+    // Mortal-forced policy: every constructor `Perl_sv_2mortal`s the
+    // newly-allocated SV before returning. The caller gets a non-owning
+    // handle that is automatically freed at end of expression unless
+    // something else (e.g. `av_push`) takes a refcount on it. This
+    // matches the XS T_SV typemap convention and means leaks are not
+    // possible by mere construction.
+
+    /// Allocate a fresh mortal SV holding `v` as an integer.
+    #[inline]
+    pub fn new_iv(perl: &Perl, v: crate::IV) -> Sv {
+        unsafe {
+            let raw = libperl_sys::Perl_newSViv(perl.as_ptr(), v);
+            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            Sv::from_raw_unchecked(raw)
+        }
+    }
+
+    /// Allocate a fresh mortal SV holding `v` as an unsigned integer.
+    #[inline]
+    pub fn new_uv(perl: &Perl, v: crate::UV) -> Sv {
+        unsafe {
+            let raw = libperl_sys::Perl_newSVuv(perl.as_ptr(), v);
+            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            Sv::from_raw_unchecked(raw)
+        }
+    }
+
+    /// Allocate a fresh mortal SV holding `v` as a double.
+    #[inline]
+    pub fn new_nv(perl: &Perl, v: crate::NV) -> Sv {
+        unsafe {
+            let raw = libperl_sys::Perl_newSVnv(perl.as_ptr(), v);
+            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            Sv::from_raw_unchecked(raw)
+        }
+    }
+
+    /// Allocate a fresh mortal SV holding `s` as a UTF-8 string.
+    pub fn new_pv(perl: &Perl, s: &str) -> Sv {
+        let bytes = s.as_bytes();
+        unsafe {
+            let raw = libperl_sys::Perl_newSVpvn(
+                perl.as_ptr(),
+                bytes.as_ptr() as *const ::core::ffi::c_char,
+                bytes.len() as _,
+            );
+            // Mark UTF-8: use the same `i64` width-bridge trick as the
+            // proc-macro's String push code (sv_flags is U32 on modern
+            // Perl, I32 on 5.30 / 5.32).
+            let cur: i64 = (*raw).sv_flags as i64;
+            (*raw).sv_flags = (cur | (libperl_sys::SVf_UTF8 as i64)) as _;
+            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            Sv::from_raw_unchecked(raw)
+        }
     }
 }
 

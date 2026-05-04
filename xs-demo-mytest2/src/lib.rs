@@ -7,7 +7,7 @@
 
 use std::ffi::CStr;
 
-use libperl_rs::{xs_boot, xs_sub, IV, NV, SV, Sv};
+use libperl_rs::{xs_boot, xs_sub, IV, NV, Perl, SV, Sv, UV};
 
 /// `Mytest2::foo($i, $l, $str)` — perlxstut EXAMPLE 4 shape.
 ///
@@ -98,8 +98,34 @@ fn maybe_sv2(sv: Sv, keep: IV) -> Option<Sv> {
     if keep != 0 { Some(sv) } else { None }
 }
 
+/// `Mytest2::wrap_iv($n)` — Phase 3.10c: take an IV, return a fresh
+/// mortal SV holding that integer. Demonstrates `&Perl` context arg
+/// + `Sv::new_iv` constructor.
+#[xs_sub]
+fn wrap_iv(my_perl: &Perl, n: IV) -> Sv {
+    Sv::new_iv(my_perl, n)
+}
+
+/// `Mytest2::wrap_uv($n)` / `wrap_nv($x)` / `wrap_pv($s)` — analogue
+/// constructors covering the rest of the SV scalar flavors.
+#[xs_sub]
+fn wrap_uv(my_perl: &Perl, n: UV) -> Sv {
+    Sv::new_uv(my_perl, n)
+}
+
+#[xs_sub]
+fn wrap_nv(my_perl: &Perl, x: NV) -> Sv {
+    Sv::new_nv(my_perl, x)
+}
+
+#[xs_sub]
+fn wrap_pv(my_perl: &Perl, s: &str) -> Sv {
+    Sv::new_pv(my_perl, s)
+}
+
 xs_boot! {
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
-            identity_sv, maybe_sv2];
+            identity_sv, maybe_sv2,
+            wrap_iv, wrap_uv, wrap_nv, wrap_pv];
 }
