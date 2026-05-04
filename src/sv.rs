@@ -127,6 +127,33 @@ impl Sv {
         unsafe { crate::thx_call!(perl, SvNV, self.0.as_ptr()) }
     }
 
+    /// `SvPV($sv)` — coerce to a string and return the byte slice
+    /// borrowed from the SV's PV buffer. `'a` is tied to `&self`,
+    /// so the slice is invalidated by any mutation that could
+    /// reallocate the buffer (`sv_setpv`, `sv_grow`, ...).
+    ///
+    /// Calls `Perl_sv_2pv_flags` with `SV_GMAGIC` so magic /
+    /// overload methods fire — the same as Perl's `"$sv"`.
+    #[inline]
+    pub fn pv<'a>(&'a self, perl: &Perl) -> &'a [u8] {
+        let mut len: libperl_sys::STRLEN = 0;
+        let ptr = unsafe {
+            crate::thx_call!(
+                perl,
+                Perl_sv_2pv_flags,
+                self.0.as_ptr(),
+                &mut len,
+                // `SV_GMAGIC` is `U32` on modern Perl, `I32` on
+                // 5.30/5.32 — `as _` lets rustc infer.
+                libperl_sys::SV_GMAGIC as _,
+            )
+        };
+        if ptr.is_null() {
+            return &[];
+        }
+        unsafe { ::core::slice::from_raw_parts(ptr as *const u8, len as usize) }
+    }
+
     /// Allocate a fresh mortal SV holding `s` as a UTF-8 string.
     pub fn new_pv(perl: &Perl, s: &str) -> Sv {
         let bytes = s.as_bytes();

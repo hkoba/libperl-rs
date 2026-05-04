@@ -193,11 +193,62 @@ fn record_keys(my_perl: &Perl, hv: &Hv) -> Vec<String> {
     keys
 }
 
+/// `Mytest2::multi_statfs(\@paths)` — perlxstut EXAMPLE 6 territory.
+///
+/// For each path in the input arrayref, run `statvfs(2)`. Returns a
+/// hashref keyed by path. Each value is either a 7-element arrayref
+/// (the `statvfs` results, same shape as the existing `statfs` sub)
+/// on success, or a string error message on failure. Paths that
+/// aren't valid byte strings (interior NULs) are skipped silently.
+///
+/// End-to-end demo for Phase 3.10e: combines `&Av` input,
+/// `Av::iter` + `Sv::pv` to read paths, `Av`/`Hv` construction,
+/// `Sv::new_*` for value SVs, `Hv::store` with both `Rv<Av>` (via
+/// `into_rv().as_sv()`) and string values, and `Rv<Hv>` return.
+#[xs_sub]
+fn multi_statfs(my_perl: &Perl, paths: &Av) -> Rv<Hv> {
+    let result = Hv::new(my_perl);
+    for slot in paths.iter(my_perl) {
+        let Some(path_sv) = slot else { continue };
+        let path_bytes = path_sv.pv(my_perl);
+        let Ok(path_cstring) = std::ffi::CString::new(path_bytes) else {
+            continue;
+        };
+        // SAFETY: `Hv::store` requires `&str` keys. Paths from Perl
+        // may not be valid UTF-8; we replace invalid sequences so
+        // every path gets a slot (consistent with how Perl hashes
+        // would treat the original byte string when stringified).
+        let key = String::from_utf8_lossy(path_bytes);
+
+        let mut sb: libc::statvfs = unsafe { std::mem::zeroed() };
+        let rc = unsafe { libc::statvfs(path_cstring.as_ptr(), &mut sb) };
+        if rc == 0 {
+            let av = Av::new(my_perl);
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_bsize  as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_frsize as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_blocks as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_bfree  as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_bavail as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_files  as NV));
+            av.push(my_perl, Sv::new_nv(my_perl, sb.f_ffree  as NV));
+            result.store(my_perl, &key, av.into_rv(my_perl).as_sv());
+        } else {
+            let msg = format!(
+                "statvfs failed: {}",
+                std::io::Error::last_os_error()
+            );
+            result.store(my_perl, &key, Sv::new_pv(my_perl, &msg));
+        }
+    }
+    result.into_rv(my_perl)
+}
+
 xs_boot! {
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
             identity_sv, maybe_sv2,
             wrap_iv, wrap_uv, wrap_nv, wrap_pv,
             make_pair, make_record, maybe_pair,
-            sum_iv, av_len_demo, record_keys];
+            sum_iv, av_len_demo, record_keys,
+            multi_statfs];
 }
