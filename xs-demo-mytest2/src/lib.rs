@@ -7,7 +7,7 @@
 
 use std::ffi::CStr;
 
-use libperl_rs::{xs_boot, xs_sub, IV, NV, SV};
+use libperl_rs::{xs_boot, xs_sub, IV, NV, SV, Sv};
 
 /// `Mytest2::foo($i, $l, $str)` — perlxstut EXAMPLE 4 shape.
 ///
@@ -84,7 +84,22 @@ fn maybe_sv(sv: *mut SV, keep: IV) -> Option<*mut SV> {
     if keep != 0 { Some(sv) } else { None }
 }
 
+/// `Mytest2::identity_sv($sv)` — same as `identity` but using the
+/// `Sv` newtype on both sides (Phase 3.10b).
+#[xs_sub]
+fn identity_sv(sv: Sv) -> Sv {
+    sv
+}
+
+/// `Mytest2::maybe_sv2($sv, $keep)` — `Option<Sv>` analogue of
+/// `maybe_sv` (Phase 3.10b).
+#[xs_sub]
+fn maybe_sv2(sv: Sv, keep: IV) -> Option<Sv> {
+    if keep != 0 { Some(sv) } else { None }
+}
+
 xs_boot! {
     package = "Mytest2";
-    subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv];
+    subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
+            identity_sv, maybe_sv2];
 }
