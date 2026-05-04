@@ -13,6 +13,25 @@
 pub use libperl_sys::*;
 pub use libperl_macros::*;
 
+/// `thx_call!(perl, Perl_xxx, args...)` — call a libperl-sys function
+/// that takes a leading `my_perl` parameter in threaded builds and
+/// drops that parameter in non-threaded builds. The first argument
+/// (`perl: &Perl`) is silently discarded in non-threaded mode.
+///
+/// Centralising this here keeps the hand-written `Sv`/`Av`/`Hv`
+/// constructors free of `#[cfg(perl_useithreads)]` clutter — same
+/// abstraction the `#[xs_sub]` proc-macro applies internally via
+/// `myperl_arg_prefix`.
+macro_rules! thx_call {
+    ($perl:expr, $fn:ident, $($arg:expr),* $(,)?) => {{
+        #[cfg(perl_useithreads)]
+        { libperl_sys::$fn($perl.as_ptr(), $($arg),*) }
+        #[cfg(not(perl_useithreads))]
+        { let _ = $perl; libperl_sys::$fn($($arg),*) }
+    }};
+}
+pub(crate) use thx_call;
+
 pub mod perl;
 pub use perl::*;
 

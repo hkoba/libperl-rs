@@ -76,8 +76,8 @@ impl Sv {
     #[inline]
     pub fn new_iv(perl: &Perl, v: crate::IV) -> Sv {
         unsafe {
-            let raw = libperl_sys::Perl_newSViv(perl.as_ptr(), v);
-            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            let raw = crate::thx_call!(perl, Perl_newSViv, v);
+            let raw = crate::thx_call!(perl, Perl_sv_2mortal, raw);
             Sv::from_raw_unchecked(raw)
         }
     }
@@ -86,8 +86,8 @@ impl Sv {
     #[inline]
     pub fn new_uv(perl: &Perl, v: crate::UV) -> Sv {
         unsafe {
-            let raw = libperl_sys::Perl_newSVuv(perl.as_ptr(), v);
-            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            let raw = crate::thx_call!(perl, Perl_newSVuv, v);
+            let raw = crate::thx_call!(perl, Perl_sv_2mortal, raw);
             Sv::from_raw_unchecked(raw)
         }
     }
@@ -96,8 +96,8 @@ impl Sv {
     #[inline]
     pub fn new_nv(perl: &Perl, v: crate::NV) -> Sv {
         unsafe {
-            let raw = libperl_sys::Perl_newSVnv(perl.as_ptr(), v);
-            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            let raw = crate::thx_call!(perl, Perl_newSVnv, v);
+            let raw = crate::thx_call!(perl, Perl_sv_2mortal, raw);
             Sv::from_raw_unchecked(raw)
         }
     }
@@ -106,8 +106,9 @@ impl Sv {
     pub fn new_pv(perl: &Perl, s: &str) -> Sv {
         let bytes = s.as_bytes();
         unsafe {
-            let raw = libperl_sys::Perl_newSVpvn(
-                perl.as_ptr(),
+            let raw = crate::thx_call!(
+                perl,
+                Perl_newSVpvn,
                 bytes.as_ptr() as *const ::core::ffi::c_char,
                 bytes.len() as _,
             );
@@ -116,7 +117,7 @@ impl Sv {
             // Perl, I32 on 5.30 / 5.32).
             let cur: i64 = (*raw).sv_flags as i64;
             (*raw).sv_flags = (cur | (libperl_sys::SVf_UTF8 as i64)) as _;
-            let raw = libperl_sys::Perl_sv_2mortal(perl.as_ptr(), raw);
+            let raw = crate::thx_call!(perl, Perl_sv_2mortal, raw);
             Sv::from_raw_unchecked(raw)
         }
     }

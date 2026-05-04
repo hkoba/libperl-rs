@@ -19,10 +19,10 @@ impl Av {
     #[inline]
     pub fn new(perl: &Perl) -> Av {
         unsafe {
-            let av = libperl_sys::Perl_newAV(perl.as_ptr());
+            let av = crate::thx_call!(perl, Perl_newAV,);
             // `AV` is layout-compatible with `SV` (it starts with the
             // SV header) — `sv_2mortal` accepts a `*mut SV` of the AV.
-            libperl_sys::Perl_sv_2mortal(perl.as_ptr(), av as *mut SV);
+            crate::thx_call!(perl, Perl_sv_2mortal, av as *mut SV);
             Av(NonNull::new(av).expect("Perl_newAV returned null"))
         }
     }
@@ -35,7 +35,7 @@ impl Av {
     pub fn push(&self, perl: &Perl, sv: Sv) {
         unsafe {
             let inc = sv_refcnt_inc(sv.as_ptr());
-            libperl_sys::Perl_av_push(perl.as_ptr(), self.0.as_ptr(), inc);
+            crate::thx_call!(perl, Perl_av_push, self.0.as_ptr(), inc);
         }
     }
 
@@ -45,12 +45,12 @@ impl Av {
     #[inline]
     pub fn into_rv(self, perl: &Perl) -> Rv<Av> {
         unsafe {
-            // `newRV` (the macrogen-emitted helper for the C `newRV`
-            // macro) is the refcount-incrementing flavor: it bumps the
-            // AV's refcount and yields a fresh RV with refcount 1.
-            // Mortalize so it's freed at scope exit too.
-            let rv = libperl_sys::newRV(perl.as_ptr(), self.0.as_ptr() as *mut SV);
-            libperl_sys::Perl_sv_2mortal(perl.as_ptr(), rv);
+            // `Perl_newRV` is the refcount-incrementing flavor of the
+            // C `newRV` macro: it bumps the AV's refcount and yields a
+            // fresh RV with refcount 1. Mortalize so it's freed at
+            // scope exit too.
+            let rv = crate::thx_call!(perl, Perl_newRV, self.0.as_ptr() as *mut SV);
+            crate::thx_call!(perl, Perl_sv_2mortal, rv);
             Rv::from_raw_sv(rv)
         }
     }

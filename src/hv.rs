@@ -16,8 +16,8 @@ impl Hv {
     #[inline]
     pub fn new(perl: &Perl) -> Hv {
         unsafe {
-            let hv = libperl_sys::Perl_newHV(perl.as_ptr());
-            libperl_sys::Perl_sv_2mortal(perl.as_ptr(), hv as *mut SV);
+            let hv = crate::thx_call!(perl, Perl_newHV,);
+            crate::thx_call!(perl, Perl_sv_2mortal, hv as *mut SV);
             Hv(NonNull::new(hv).expect("Perl_newHV returned null"))
         }
     }
@@ -32,8 +32,9 @@ impl Hv {
             let inc = sv_refcnt_inc(val.as_ptr());
             // `klen` is `I32` — caller-side cast; len always fits for
             // realistic hash keys, no overflow check.
-            libperl_sys::Perl_hv_store(
-                perl.as_ptr(),
+            crate::thx_call!(
+                perl,
+                Perl_hv_store,
                 self.0.as_ptr(),
                 bytes.as_ptr() as *const ::core::ffi::c_char,
                 bytes.len() as _,
@@ -47,8 +48,8 @@ impl Hv {
     #[inline]
     pub fn into_rv(self, perl: &Perl) -> Rv<Hv> {
         unsafe {
-            let rv = libperl_sys::newRV(perl.as_ptr(), self.0.as_ptr() as *mut SV);
-            libperl_sys::Perl_sv_2mortal(perl.as_ptr(), rv);
+            let rv = crate::thx_call!(perl, Perl_newRV, self.0.as_ptr() as *mut SV);
+            crate::thx_call!(perl, Perl_sv_2mortal, rv);
             Rv::from_raw_sv(rv)
         }
     }
