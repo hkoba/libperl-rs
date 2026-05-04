@@ -529,38 +529,26 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
             unsafe {
                 let __mortal = ::libperl_rs::Perl_sv_2mortal(
                     #myperl_arg_prefix
-                    ::libperl_rs::Perl_SvREFCNT_inc(__sv),
+                    ::libperl_rs::sv_refcnt_inc(__sv),
                 );
                 *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __mortal;
             }
             __set_sp_for_n(1);
         },
         RetKind::OptionRawSv => {
-            // For `None` we push `&PL_sv_undef`. The address-of the
-            // immortal undef SV differs by build mode:
-            //   threaded:     `&raw mut (*my_perl).Isv_undef`
-            //   non-threaded: `&raw mut ::libperl_rs::PL_sv_undef`
-            let undef_addr: TokenStream2 = if threaded {
-                quote! {
-                    unsafe { &raw mut (*my_perl).Isv_undef as *mut ::libperl_rs::SV }
-                }
-            } else {
-                quote! {
-                    unsafe {
-                        &raw mut ::libperl_rs::PL_sv_undef as *mut ::libperl_rs::SV
-                    }
-                }
-            };
+            // `PL_sv_undef`'s storage location differs across build
+            // modes (and across Perl versions in non-threaded), so we
+            // delegate to the `sv_undef_ptr` helper in libperl-rs.
             quote! {
                 let __pushed: *mut ::libperl_rs::SV = match __ret {
                     ::core::option::Option::Some(__sv) => unsafe {
                         ::libperl_rs::Perl_sv_2mortal(
                             #myperl_arg_prefix
-                            ::libperl_rs::Perl_SvREFCNT_inc(__sv),
+                            ::libperl_rs::sv_refcnt_inc(__sv),
                         )
                     },
                     // `PL_sv_undef` is immortal — no INC / mortalize.
-                    ::core::option::Option::None => #undef_addr,
+                    ::core::option::Option::None => ::libperl_rs::sv_undef_ptr(my_perl),
                 };
                 unsafe {
                     *::libperl_rs::PL_stack_base!(my_perl).add(__ax + 0) = __pushed;
