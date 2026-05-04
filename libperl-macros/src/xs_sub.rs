@@ -773,6 +773,12 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
     if is_sv_newtype(ty) {
         return Some(RetKind::Sv);
     }
+    if is_rv_wrapper(ty) {
+        // `Rv<T>` is shaped exactly like `Sv` from the trampoline's
+        // perspective — it has an `as_ptr() -> *mut SV` method and the
+        // SV underneath is already mortal (constructed via `into_rv`).
+        return Some(RetKind::Sv);
+    }
     if let Type::Path(TypePath { path, .. }) = ty {
         let last = path.segments.last()?;
         match last.ident.to_string().as_str() {
@@ -787,15 +793,16 @@ fn classify_ret_type(ty: &Type) -> Option<RetKind> {
     classify_scalar(ty).map(RetKind::Scalar)
 }
 
-/// `Option<T>` — currently `Option<*mut SV>` (Phase 3.10a) and
-/// `Option<Sv>` (Phase 3.10b). Future phases will accept `Option<Av>`,
-/// `Option<Rv<T>>`, etc.
+/// `Option<T>` — `Option<*mut SV>` (Phase 3.10a), `Option<Sv>`
+/// (Phase 3.10b), `Option<Rv<U>>` (Phase 3.10c). All wrap the same
+/// "Some pushes the SV, None pushes undef" pattern; the inner type
+/// just selects which `as_ptr()` is in scope.
 fn classify_option_inner(args: &syn::PathArguments) -> Option<RetKind> {
     let inner = generic_arg_n(args, 0)?;
     if is_raw_sv_ptr(inner) {
         return Some(RetKind::OptionRawSv);
     }
-    if is_sv_newtype(inner) {
+    if is_sv_newtype(inner) || is_rv_wrapper(inner) {
         return Some(RetKind::OptionSv);
     }
     None
@@ -819,6 +826,19 @@ fn is_raw_sv_ptr(ty: &Type) -> bool {
 fn is_sv_newtype(ty: &Type) -> bool {
     let Type::Path(TypePath { path, .. }) = ty else { return false };
     path.segments.last().is_some_and(|s| s.ident == "Sv" && s.arguments.is_none())
+}
+
+/// True when `ty` is `Rv<...>` — any single-generic `Rv` path
+/// (`Rv<Av>`, `libperl_rs::Rv<Hv>`, etc.). The proc-macro doesn't
+/// inspect the generic arg; the body fn's type system enforces what's
+/// actually inside.
+fn is_rv_wrapper(ty: &Type) -> bool {
+    let Type::Path(TypePath { path, .. }) = ty else { return false };
+    let Some(last) = path.segments.last() else { return false };
+    if last.ident != "Rv" {
+        return false;
+    }
+    matches!(last.arguments, syn::PathArguments::AngleBracketed(_))
 }
 
 /// `Vec<T>` — inspect the single generic arg.

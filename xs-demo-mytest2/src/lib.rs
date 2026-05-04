@@ -7,7 +7,7 @@
 
 use std::ffi::CStr;
 
-use libperl_rs::{xs_boot, xs_sub, IV, NV, Perl, SV, Sv, UV};
+use libperl_rs::{xs_boot, xs_sub, Av, Hv, IV, NV, Perl, Rv, SV, Sv, UV};
 
 /// `Mytest2::foo($i, $l, $str)` — perlxstut EXAMPLE 4 shape.
 ///
@@ -123,9 +123,46 @@ fn wrap_pv(my_perl: &Perl, s: &str) -> Sv {
     Sv::new_pv(my_perl, s)
 }
 
+/// `Mytest2::make_pair()` — return `[1, 2]` as an array reference.
+/// Demonstrates `Av::new` / `Av::push` / `Av::into_rv` and the
+/// `Rv<Av>` return path.
+#[xs_sub]
+fn make_pair(my_perl: &Perl) -> Rv<Av> {
+    let av = Av::new(my_perl);
+    av.push(my_perl, Sv::new_iv(my_perl, 1));
+    av.push(my_perl, Sv::new_iv(my_perl, 2));
+    av.into_rv(my_perl)
+}
+
+/// `Mytest2::make_record()` — return `{ name => "ada", year => 1815 }`
+/// as a hash reference. Demonstrates `Hv::new` / `Hv::store` /
+/// `Hv::into_rv` and the `Rv<Hv>` return path.
+#[xs_sub]
+fn make_record(my_perl: &Perl) -> Rv<Hv> {
+    let hv = Hv::new(my_perl);
+    hv.store(my_perl, "name", Sv::new_pv(my_perl, "ada"));
+    hv.store(my_perl, "year", Sv::new_iv(my_perl, 1815));
+    hv.into_rv(my_perl)
+}
+
+/// `Mytest2::maybe_pair($keep)` — `Some(\@arr)` or `None` →
+/// undef. Exercises `Option<Rv<Av>>`.
+#[xs_sub]
+fn maybe_pair(my_perl: &Perl, keep: IV) -> Option<Rv<Av>> {
+    if keep != 0 {
+        let av = Av::new(my_perl);
+        av.push(my_perl, Sv::new_iv(my_perl, 10));
+        av.push(my_perl, Sv::new_iv(my_perl, 20));
+        Some(av.into_rv(my_perl))
+    } else {
+        None
+    }
+}
+
 xs_boot! {
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
             identity_sv, maybe_sv2,
-            wrap_iv, wrap_uv, wrap_nv, wrap_pv];
+            wrap_iv, wrap_uv, wrap_nv, wrap_pv,
+            make_pair, make_record, maybe_pair];
 }
