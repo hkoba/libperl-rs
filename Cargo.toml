@@ -3,26 +3,37 @@ name = "libperl-rs"
 version = "0.4.0-alpha.1"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2024"
-description = "Embed perl5 runtime in Rust"
+description = "Embed the Perl 5 runtime in a Rust application — safe wrapper around libperl-sys"
 
 repository = "https://github.com/hkoba/libperl-rs.git"
+documentation = "https://docs.rs/libperl-rs"
+readme = "README.md"
 
-keywords = ["perl"]
+keywords = ["perl", "perl5", "ffi", "embed", "scripting"]
+categories = ["api-bindings", "external-ffi-bindings"]
 
 license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
 
+exclude = [
+    # Dev-internal docs / scripts not needed by published-crate users.
+    "CLAUDE.md",
+    "docs/",
+    "podman-build.zsh",
+    "release.toml",
+    "runtest-docker.zsh",
+    ".claude/",
+    ".github/",
+]
+
 [workspace]
 members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros", "xs-demo-mytest", "xs-demo-mytest2"]
-
-[badges]
-travis-ci = { repository = "hkoba/libperl-rs", branch = "master" }
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-libperl-sys = { path = "./libperl-sys", version = "^0.3.1" }
+libperl-sys = { path = "./libperl-sys", version = "^0.4.0-alpha.1" }
 libperl-macros = { path = "./libperl-macros", version = "^0.4.0-alpha.1" }
 
 [build-dependencies]
-libperl-config = { path = "./libperl-config", version = "^0.3.1" }
+libperl-config = { path = "./libperl-config", version = "^0.3.2" }

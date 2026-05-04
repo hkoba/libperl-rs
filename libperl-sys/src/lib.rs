@@ -1,3 +1,47 @@
+//! # libperl-sys
+//!
+//! Low-level, raw FFI declarations for the Perl 5 C API (`libperl`).
+//! Generated at build time by `bindgen` (regular C declarations) plus
+//! [`libperl-macrogen`](https://docs.rs/libperl-macrogen) (the C
+//! macros and `static inline` functions that `bindgen` skips).
+//!
+//! This crate is the unsafe foundation under
+//! [`libperl-rs`](https://docs.rs/libperl-rs); most users want that
+//! safer wrapper. Reach for `libperl-sys` directly when you need an
+//! API element that hasn't been wrapped yet, or when you're writing
+//! a sibling crate at the same layer.
+//!
+//! ## What you get
+//!
+//! Re-exported at the crate root:
+//!
+//! - `Perl_*` extern functions and `PL_*` mutable statics (from
+//!   bindgen),
+//! - `Sv*` / `Av*` / `Hv*` / `PL_xxx!()` macro helpers and inline
+//!   wrappers (from libperl-macrogen) — these unify the threaded vs
+//!   non-threaded calling conventions so the same source builds
+//!   against both `MULTIPLICITY` modes,
+//! - opcode → name lookup table ([`conv_opcode`]) and per-function
+//!   signature dictionary ([`sigdb`]) for downstream codegen.
+//!
+//! ## Safety
+//!
+//! Every public item here is `unsafe` to use. Even reading a `PL_*`
+//! global requires the right interpreter context, and Perl's API
+//! uses raw `*mut` pointers ubiquitously.
+//!
+//! ## Build requirements
+//!
+//! - A working Perl 5 install with development headers
+//!   (`Perl.h`, `EXTERN.h`, ...). Typical packages: `perl-dev`,
+//!   `perl-devel`.
+//! - LLVM / libclang (for `bindgen`).
+//! - Internet access at first build (libperl-macrogen downloads a
+//!   pre-extracted apidoc snapshot from GitHub Releases).
+//!
+//! Threaded vs non-threaded Perl is auto-detected — no feature flag
+//! to set.
+
 pub mod perl_core;
 pub use perl_core::*;
 

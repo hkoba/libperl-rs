@@ -1,3 +1,34 @@
+//! # libperl-config
+//!
+//! Build-time helper for crates that link against `libperl`. Reads the
+//! local Perl installation's `Config.pm` (via `perl -V:...`) and turns
+//! the answers into `cargo:` directives + `cfg(...)` flags.
+//!
+//! Used by [`libperl-sys`](https://docs.rs/libperl-sys) and
+//! [`libperl-rs`](https://docs.rs/libperl-rs) build scripts to:
+//!
+//! - emit `cargo:rustc-link-search` / `rustc-link-lib` / `rustc-link-arg`
+//!   from `$Config{ccopts}` and `$Config{ldopts}`,
+//! - expose feature toggles like `cfg(perl_useithreads)` based on
+//!   `$Config{useithreads}`,
+//! - emit per-API-version cfgs (`cfg(perlapi_ver26)` ...
+//!   `cfg(perlapi_ver42)`) so source can branch on Perl version.
+//!
+//! Typical usage in a downstream `build.rs`:
+//!
+//! ```no_run
+//! use libperl_config::PerlConfig;
+//!
+//! fn main() {
+//!     let config = PerlConfig::default();
+//!     config.emit_cargo_ldopts();
+//!     config.emit_features(&["useithreads"]);
+//!     config.emit_all_perlapi_versions(10);
+//! }
+//! ```
+//!
+//! See [`PerlConfig`] for the full API.
+
 mod perl_command;
 pub use perl_command::*;
 
