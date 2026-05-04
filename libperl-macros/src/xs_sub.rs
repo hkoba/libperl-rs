@@ -64,6 +64,13 @@ enum ArgKind {
     /// By convention this is the first parameter and is named
     /// `my_perl` (see `docs/plan/README.md` §3.8).
     PerlContext,
+    /// `&Av` — borrowed array. The caller passes `\@arr`; the
+    /// trampoline checks `SvROK` + `SvTYPE == SVt_PVAV` and croaks on
+    /// mismatch, then `SvRV`s into a borrowed `Av`. Phase 3.10d.
+    InAvRef,
+    /// `&Hv` — borrowed hash. Same dance as `InAvRef` but checks
+    /// `SVt_PVHV`. Phase 3.10d.
+    InHvRef,
 }
 
 #[derive(Clone)]
@@ -192,6 +199,10 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 // The trampoline injects a `__perl_ref: &Perl` local
                 // before calling the body fn (see `perl_ref_setup`).
                 ArgKind::PerlContext => quote! { __perl_ref },
+                // `&Av` / `&Hv` extraction binds `#n` as `Av`/`Hv` (by
+                // value, Copy); pass-by-reference matches the user's
+                // signature.
+                ArgKind::InAvRef | ArgKind::InHvRef => quote! { &#n },
             }
         })
         .collect();
@@ -355,6 +366,52 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #svp_capture
                         let #name: ::libperl_rs::Sv = unsafe {
                             ::libperl_rs::Sv::from_raw_unchecked(*#svp_ident)
+                        };
+                    }
+                }
+                ArgKind::InAvRef | ArgKind::InHvRef => {
+                    let (rust_ty, expected_svtype, type_str, ctor) = match spec.kind {
+                        ArgKind::InAvRef => (
+                            quote! { ::libperl_rs::Av },
+                            quote! { ::libperl_rs::svtype::SVt_PVAV },
+                            "ARRAY",
+                            quote! { ::libperl_rs::Av::from_raw_unchecked },
+                        ),
+                        ArgKind::InHvRef => (
+                            quote! { ::libperl_rs::Hv },
+                            quote! { ::libperl_rs::svtype::SVt_PVHV },
+                            "HASH",
+                            quote! { ::libperl_rs::Hv::from_raw_unchecked },
+                        ),
+                        _ => unreachable!(),
+                    };
+                    let err_msg = format!("argument `{}` must be a {} reference", name, type_str);
+                    let err_lit = syn::LitCStr::new(
+                        std::ffi::CString::new(err_msg).unwrap().as_c_str(),
+                        proc_macro2::Span::call_site(),
+                    );
+                    // ROK + SvRV's SvTYPE check; croak on mismatch.
+                    // `SvROK`/`SvRV`/`SvTYPE` are macrogen-emitted
+                    // helpers that take no `my_perl` (same in both
+                    // threading modes).
+                    quote! {
+                        #svp_capture
+                        let #name: #rust_ty = unsafe {
+                            let __sv: *mut ::libperl_rs::SV = *#svp_ident;
+                            if ::libperl_rs::SvROK(__sv) == 0 {
+                                ::libperl_rs::Perl_croak(
+                                    #myperl_arg_prefix
+                                    #err_lit.as_ptr(),
+                                );
+                            }
+                            let __target: *mut ::libperl_rs::SV = ::libperl_rs::SvRV(__sv);
+                            if ::libperl_rs::SvTYPE(__target) != #expected_svtype {
+                                ::libperl_rs::Perl_croak(
+                                    #myperl_arg_prefix
+                                    #err_lit.as_ptr(),
+                                );
+                            }
+                            #ctor(__target as _)
                         };
                     }
                 }
@@ -740,13 +797,16 @@ fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
             // `&mut T` — out-parameter (only scalar flavors supported).
             return classify_scalar(elem).map(ArgKind::Out);
         }
-        // `&T` — `&str`, `&CStr`, or `&Perl` (the interpreter context).
+        // `&T` — `&str`, `&CStr`, `&Perl` (interpreter context),
+        // `&Av` / `&Hv` (borrowed array / hash).
         if let Type::Path(TypePath { path, .. }) = elem.as_ref() {
             let last = path.segments.last()?;
             return match last.ident.to_string().as_str() {
                 "str" => Some(ArgKind::InStr),
                 "CStr" => Some(ArgKind::InCStr),
                 "Perl" => Some(ArgKind::PerlContext),
+                "Av" if last.arguments.is_none() => Some(ArgKind::InAvRef),
+                "Hv" if last.arguments.is_none() => Some(ArgKind::InHvRef),
                 _ => None,
             };
         }

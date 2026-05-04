@@ -55,9 +55,88 @@ impl Av {
         }
     }
 
+    /// Wrap a raw `*mut AV` without checking for null. Used by the
+    /// `#[xs_sub]` proc-macro after it has dereferenced an `&Av` arg
+    /// (caller passed `\@arr` and we've already SvROK / SvTYPE-checked
+    /// the SV).
+    ///
+    /// # Safety
+    /// `p` must be non-null and point to a valid AV that outlives the
+    /// returned `Av`.
+    #[inline]
+    pub unsafe fn from_raw_unchecked(p: *mut AV) -> Av {
+        debug_assert!(!p.is_null(), "Av::from_raw_unchecked received a null pointer");
+        Av(unsafe { NonNull::new_unchecked(p) })
+    }
+
+    /// Number of elements (`scalar @array`).
+    #[inline]
+    pub fn len(&self, perl: &Perl) -> usize {
+        // `av_len` returns the highest index, or -1 for empty.
+        let n = unsafe { crate::thx_call!(perl, Perl_av_len, self.0.as_ptr()) };
+        if n < 0 { 0 } else { (n + 1) as usize }
+    }
+
+    /// `$arr[$idx]`, or `None` if the slot is empty / out of bounds.
+    /// The returned `Sv` borrows from this AV — don't keep it past
+    /// any mutation of the AV.
+    #[inline]
+    pub fn get(&self, perl: &Perl, idx: usize) -> Option<Sv> {
+        let svp = unsafe {
+            crate::thx_call!(perl, Perl_av_fetch, self.0.as_ptr(), idx as isize, 0)
+        };
+        if svp.is_null() {
+            return None;
+        }
+        // av_fetch yields `**SV`; deref to get the slot's `*mut SV`.
+        // The slot may itself be null for sparse arrays.
+        Sv::from_raw(unsafe { *svp })
+    }
+
+    /// Iterate over `(0..len)` yielding each slot as `Option<Sv>`.
+    /// `None` for sparse / unallocated slots.
+    #[inline]
+    pub fn iter<'a>(&'a self, perl: &'a Perl) -> AvIter<'a> {
+        let len = self.len(perl);
+        AvIter { perl, av: self.0, idx: 0, len }
+    }
+
     /// Raw pointer for FFI.
     #[inline]
     pub fn as_ptr(&self) -> *mut AV {
         self.0.as_ptr()
+    }
+}
+
+/// Iterator yielded by [`Av::iter`].
+pub struct AvIter<'a> {
+    perl: &'a Perl,
+    av: NonNull<AV>,
+    idx: usize,
+    len: usize,
+}
+
+impl<'a> Iterator for AvIter<'a> {
+    type Item = Option<Sv>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.len {
+            return None;
+        }
+        let i = self.idx;
+        self.idx += 1;
+        let svp = unsafe {
+            crate::thx_call!(self.perl, Perl_av_fetch, self.av.as_ptr(), i as isize, 0)
+        };
+        Some(if svp.is_null() {
+            None
+        } else {
+            Sv::from_raw(unsafe { *svp })
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let r = self.len - self.idx;
+        (r, Some(r))
     }
 }

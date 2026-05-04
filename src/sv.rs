@@ -102,6 +102,31 @@ impl Sv {
         }
     }
 
+    // ── Accessors (Phase 3.10d) ────────────────────────────────────
+    //
+    // `SvIV` / `SvUV` / `SvNV` are macrogen-emitted helpers whose
+    // signature differs across threading modes — wrap them in
+    // threading-aware methods so user code in a body fn doesn't have
+    // to reach for `thx_call!` directly.
+
+    /// `SvIV($sv)` — coerce the SV to an integer.
+    #[inline]
+    pub fn iv(&self, perl: &Perl) -> crate::IV {
+        unsafe { crate::thx_call!(perl, SvIV, self.0.as_ptr()) }
+    }
+
+    /// `SvUV($sv)` — coerce to unsigned integer.
+    #[inline]
+    pub fn uv(&self, perl: &Perl) -> crate::UV {
+        unsafe { crate::thx_call!(perl, SvUV, self.0.as_ptr()) }
+    }
+
+    /// `SvNV($sv)` — coerce to floating point.
+    #[inline]
+    pub fn nv(&self, perl: &Perl) -> crate::NV {
+        unsafe { crate::thx_call!(perl, SvNV, self.0.as_ptr()) }
+    }
+
     /// Allocate a fresh mortal SV holding `s` as a UTF-8 string.
     pub fn new_pv(perl: &Perl, s: &str) -> Sv {
         let bytes = s.as_bytes();

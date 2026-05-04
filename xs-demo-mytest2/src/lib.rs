@@ -159,10 +159,45 @@ fn maybe_pair(my_perl: &Perl, keep: IV) -> Option<Rv<Av>> {
     }
 }
 
+/// `Mytest2::sum_iv(\@arr)` — Phase 3.10d: take an array ref, sum
+/// its elements as IVs. Demonstrates `&Av` arg + `Av::iter`. Croaks
+/// at the trampoline level if the caller passes a non-array-ref.
+#[xs_sub]
+fn sum_iv(my_perl: &Perl, av: &Av) -> IV {
+    let mut acc: IV = 0;
+    for slot in av.iter(my_perl) {
+        if let Some(sv) = slot {
+            acc += sv.iv(my_perl);
+        }
+    }
+    acc
+}
+
+/// `Mytest2::av_len_demo(\@arr)` — return the length of the array.
+/// Trivial, but exercises the `&Av` + `Av::len` path.
+#[xs_sub]
+fn av_len_demo(my_perl: &Perl, av: &Av) -> IV {
+    av.len(my_perl) as IV
+}
+
+/// `Mytest2::record_keys(\%hash)` — Phase 3.10d: take a hash ref,
+/// return a sorted Vec of its keys. Demonstrates `&Hv` arg +
+/// `Hv::iter`.
+#[xs_sub]
+fn record_keys(my_perl: &Perl, hv: &Hv) -> Vec<String> {
+    let mut keys: Vec<String> = hv
+        .iter(my_perl)
+        .map(|(k, _v)| String::from_utf8_lossy(k).into_owned())
+        .collect();
+    keys.sort();
+    keys
+}
+
 xs_boot! {
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
             identity_sv, maybe_sv2,
             wrap_iv, wrap_uv, wrap_nv, wrap_pv,
-            make_pair, make_record, maybe_pair];
+            make_pair, make_record, maybe_pair,
+            sum_iv, av_len_demo, record_keys];
 }
