@@ -61,7 +61,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let out_file = cargo_outdir().join("bindings.rs");
 
-    let do_build = if !out_file.exists() {
+    // docs.rs's build sandbox sometimes presents an OUT_DIR with a
+    // pre-existing `bindings.rs`, even though the per-version
+    // `target/` host path implies a fresh start. Whatever the root
+    // cause (rustwide caching, snapshot reuse, ...), the `do_build`
+    // short-circuit below would otherwise kick in and skip both
+    // bindgen AND macrogen — leaving the crate documented with
+    // stale generated sources. Always force a rebuild in DOCS_RS
+    // mode. Locally, the existing freshness check still applies
+    // (cargo's own incremental tracking handles the common case).
+    let force_rebuild = env::var("DOCS_RS").is_ok();
+    let do_build = if force_rebuild {
+        println!("cargo:warning=libperl-sys build.rs: DOCS_RS set → force do_build=true");
+        true
+    }
+    else if !out_file.exists() {
         println!("cargo:warning=libperl-sys build.rs: bindings.rs missing → do_build=true");
         println!("# will generate new {}", out_file.display());
         true
