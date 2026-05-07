@@ -36,6 +36,12 @@ fn look_updated_against<'a>(checked: &Path, against: &[&'a Path]) -> Option<&'a 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
+    // Diagnostic markers (visible as `[INFO] [stderr] warning:` in
+    // docs.rs build logs). Lets us confirm whether build.rs actually
+    // ran, which path was taken, and how many macrogen wrappers were
+    // produced. Remove once we've debugged the docs.rs caching issue.
+    println!("cargo:warning=libperl-sys build.rs: entered main()");
+
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
 
@@ -56,6 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_file = cargo_outdir().join("bindings.rs");
 
     let do_build = if !out_file.exists() {
+        println!("cargo:warning=libperl-sys build.rs: bindings.rs missing → do_build=true");
         println!("# will generate new {}", out_file.display());
         true
     }
@@ -69,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         true
     }
     else {
+        println!("cargo:warning=libperl-sys build.rs: bindings.rs cached → do_build=false");
         println!("# out_file {} exists and up-to-date with src {}\n# out_file={{{:?}}} src_file={{{:?}}}"
                  , out_file.display(), src_path.display()
                  , out_file.metadata().unwrap().modified()
@@ -144,12 +152,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             builder = builder.with_include(p);
         }
 
-        let _result = builder
+        let result = builder
             .build()?
             .generate(&mut output)?;
 
-        // println!("cargo:warning=Generated {} macro + {} inline functions",
-        //          result.stats.macro_success, result.stats.inline_success);
+        // Drop the file handle so the size check below sees the
+        // actual bytes flushed.
+        drop(output);
+
+        let macro_size = std::fs::metadata(&macro_out_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        println!(
+            "cargo:warning=libperl-sys build.rs: macrogen produced \
+             macros_success={} inline_fns_success={} (macro_bindings.rs={} bytes)",
+            result.stats.macros_success,
+            result.stats.inline_fns_success,
+            macro_size,
+        );
 
     }
 
