@@ -32,7 +32,7 @@ members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros", 
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-libperl-sys = { path = "./libperl-sys", version = "^0.4.0-alpha.3" }
+libperl-sys = { path = "./libperl-sys", version = "^0.4.0-alpha.4" }
 libperl-macros = { path = "./libperl-macros", version = "^0.4.0-alpha.1" }
 
 [build-dependencies]
