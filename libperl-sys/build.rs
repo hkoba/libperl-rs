@@ -50,6 +50,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     perl.emit_all_perlapi_versions(10);
 
+    // Surface the build-target Perl version into the rlib so that
+    // `env!()` in lib.rs can interpolate it into the crate-level
+    // doc comment (visible on docs.rs) and into `pub const`s
+    // (queryable at runtime). Crucial for docs.rs visitors who need
+    // to know which Perl version's API surface they're looking at.
+    let perl_version  = perl.dict.get("version").cloned().unwrap_or_default();
+    let perl_archname = perl.dict.get("archname").cloned().unwrap_or_default();
+    let perl_threaded = if perl.is_defined("useithreads").unwrap_or(false) {
+        "threaded"
+    } else {
+        "non-threaded"
+    };
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_VERSION={}", perl_version);
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_ARCHNAME={}", perl_archname);
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_THREADED={}", perl_threaded);
+
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
 

@@ -1,5 +1,18 @@
 //! # libperl-sys
 //!
+#![doc = concat!(
+    "**Built against Perl ", env!("LIBPERL_SYS_PERL_VERSION"),
+    " (", env!("LIBPERL_SYS_PERL_THREADED"),
+    ", `", env!("LIBPERL_SYS_PERL_ARCHNAME"), "`).**",
+)]
+//!
+//! The function signatures, `PL_*` globals, and `Sv*` / `Av*` / `Hv*`
+//! helpers documented below reflect this specific Perl. Different
+//! Perl versions may have minor signature differences (added /
+//! removed functions, changed integer widths, threading-mode
+//! variations). Use the [`PERL_VERSION`] / [`PERL_THREADED`] /
+//! [`PERL_ARCHNAME`] constants for runtime identification.
+//!
 //! Low-level, raw FFI declarations for the Perl 5 C API (`libperl`).
 //! Generated at build time by `bindgen` (regular C declarations) plus
 //! [`libperl-macrogen`](https://docs.rs/libperl-macrogen) (the C
@@ -48,6 +61,20 @@ pub use perl_core::*;
 pub mod conv_opcode;
 
 pub mod sigdb;
+
+/// Perl version this binding was generated against (e.g. `"5.38.4"`).
+pub const PERL_VERSION:  &str = env!("LIBPERL_SYS_PERL_VERSION");
+
+/// `"threaded"` if the target Perl was built with `useithreads`,
+/// `"non-threaded"` otherwise. Threading mode determines whether
+/// most Perl C API functions take a leading `my_perl: *mut PerlInterpreter`
+/// parameter.
+pub const PERL_THREADED: &str = env!("LIBPERL_SYS_PERL_THREADED");
+
+/// Perl `archname` (e.g. `"x86_64-linux-thread-multi"` or
+/// `"x86_64-linux-gnu"`). Mostly informational; the more useful
+/// invariants are in [`PERL_VERSION`] and [`PERL_THREADED`].
+pub const PERL_ARCHNAME: &str = env!("LIBPERL_SYS_PERL_ARCHNAME");
 
 use std::ffi::CStr;
 

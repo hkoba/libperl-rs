@@ -1,3 +1,13 @@
+//! Auto-generated FFI declarations (bindgen + libperl-macrogen output).
+//!
+#![doc = concat!(
+    "Built against Perl ", env!("LIBPERL_SYS_PERL_VERSION"),
+    " (", env!("LIBPERL_SYS_PERL_THREADED"),
+    ", `", env!("LIBPERL_SYS_PERL_ARCHNAME"), "`).",
+)]
+//!
+//! See the [crate root](crate) for build-target details and version
+//! constants.
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
