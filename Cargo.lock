@@ -645,7 +645,7 @@ dependencies = [
 
 [[package]]
 name = "libperl-macros"
-version = "0.4.0-alpha.1"
+version = "0.4.0"
 dependencies = [
  "libperl-config",
  "proc-macro2",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "libperl-rs"
-version = "0.4.0-alpha.1"
+version = "0.4.0"
 dependencies = [
  "libperl-config",
  "libperl-macros",
@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "libperl-sys"
-version = "0.4.0-alpha.9"
+version = "0.4.0"
 dependencies = [
  "bindgen",
  "libc",

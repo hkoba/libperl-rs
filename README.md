@@ -21,10 +21,12 @@ functions that `bindgen` skips) come from a separate companion crate,
 
 ## Status
 
-Pre-1.0. The 0.4.0-alpha series tracks the rebuild plan in
-`docs/plan/README.md`; the public API may move between alpha
-releases. CI exercises Perl 5.30 / 5.32 / 5.34 / 5.36 / 5.38 / 5.40 /
-5.42 / latest, both threaded and non-threaded.
+Pre-1.0. Breaking changes are allowed at minor version bumps
+(`0.4 → 0.5 → ...`) per the Rust ecosystem convention for `0.x`
+crates. The 0.4.0 line corresponds to the rebuild plan tracked in
+`docs/plan/README.md` (Phase 3.10 = perlxstut EXAMPLE 1–6
+coverage). CI exercises Perl 5.30 / 5.32 / 5.34 / 5.36 / 5.38 /
+5.40 / 5.42 / latest, both threaded and non-threaded.
 
 ## Build requirements
 

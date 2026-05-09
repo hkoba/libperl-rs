@@ -1,6 +1,6 @@
 [package]
 name = "libperl-macros"
-version = "0.4.0-alpha.1"
+version = "0.4.0"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2024"
 description = "Procedural macros for libperl-rs (#[thx], #[xs_sub], xs_boot!)"

@@ -1,6 +1,6 @@
 [package]
 name = "libperl-rs"
-version = "0.4.0-alpha.1"
+version = "0.4.0"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2024"
 description = "Embed the Perl 5 runtime in a Rust application — safe wrapper around libperl-sys"
@@ -32,8 +32,8 @@ members = ["libperl-sys", "libperl-config", "libperl-proto0", "libperl-macros", 
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-libperl-sys = { path = "./libperl-sys", version = "^0.4.0-alpha.9" }
-libperl-macros = { path = "./libperl-macros", version = "^0.4.0-alpha.1" }
+libperl-sys = { path = "./libperl-sys", version = "^0.4.0" }
+libperl-macros = { path = "./libperl-macros", version = "^0.4.0" }
 
 [build-dependencies]
 libperl-config = { path = "./libperl-config", version = "^0.3.2" }
