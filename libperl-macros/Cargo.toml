@@ -1,0 +1,26 @@
+[package]
+name = "libperl-macros"
+version = "0.4.0"
+authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
+edition = "2024"
+description = "Procedural macros for libperl-rs (#[thx], #[xs_sub], xs_boot!)"
+
+repository = "https://github.com/hkoba/libperl-rs.git"
+documentation = "https://docs.rs/libperl-macros"
+readme = "README.md"
+
+keywords = ["perl", "perl5", "xs", "ffi", "macros"]
+categories = ["development-tools::ffi", "external-ffi-bindings"]
+
+license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+
+[build-dependencies]
+libperl-config = { path = "../libperl-config", version = "^0.3.2" }

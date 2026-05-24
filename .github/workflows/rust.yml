@@ -15,31 +15,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: actions-rust-lang/setup-rust-toolchain@v1
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y llvm-dev libclang-dev clang libnsl-dev
+        sudo apt-get install -y llvm-dev libclang-dev clang libnsl-dev libc6-dev build-essential
 
     - name: Set up Perl ${{ matrix.perl-version }}
       uses: shogo82148/actions-setup-perl@v1
       with:
         perl-version: ${{ matrix.perl-version }}
         multi-thread: ${{ matrix.threaded }}
+        install-modules-with: cpanm
+        install-modules: |
+          Test2::Suite
+
+    - name: Debug include paths
+      run: |
+        echo "=== perl -V:incpth ==="
+        perl -V:incpth
+        echo "=== gcc -print-file-name=include ==="
+        gcc -print-file-name=include
+        echo "=== cc -E -Wp,-v ==="
+        cc -E -Wp,-v -xc /dev/null 2>&1 | sed -n '/search starts here/,/End of search list/p'
 
     - name: Build
       run: cargo build --verbose
+    - name: Upload macro_bindings.rs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macro_bindings
+        path: target/debug/build/libperl-sys-*/out/macro_bindings.rs
+
     - name: Run tests
-      run: cargo test --all --examples
+      run: cargo test --workspace
+
+    - name: Run example tests
+      run: cargo test --examples
+
+    - name: Show skip-list status on failure
+      if: failure()
+      run: |
+        F=$(find target/debug/build -name macro_bindings.rs | head -1)
+        echo "=== CODEGEN_SUPPRESSED count ==="
+        grep -c '\[CODEGEN_SUPPRESSED\]' "$F" || echo 0
+        echo "=== Functions at error lines ==="
+        for L in 766 1234 1832 1835 2355 2557 5955 20120 22073 22082; do
+          echo "--- line $L ---"
+          head -n "$L" "$F" | grep -nE '^pub unsafe fn ' | tail -1
+        done
 
     strategy:
       fail-fast: false
       matrix:
         threaded: [ true, false ]
         perl-version:
-          - '5.26'
-          - '5.28'
           - '5.30'
           - '5.32'
           - '5.34'

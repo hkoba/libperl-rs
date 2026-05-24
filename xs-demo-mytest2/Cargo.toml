@@ -1,0 +1,17 @@
+[package]
+name = "Mytest2"
+version = "0.1.0"
+edition = "2024"
+description = "Demo of #[xs_sub] string args + scalar return types (perlxstut EXAMPLE 4)"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libperl-rs = { path = ".." }
+libperl-sys = { path = "../libperl-sys" }
+libc = "0.2"
+
+[build-dependencies]
+libperl-config = { path = "../libperl-config" }

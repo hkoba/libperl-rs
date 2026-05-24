@@ -1,60 +1,138 @@
-#![allow(non_snake_case)]
+//! `Perl` — RAII-managed wrapper around `*mut PerlInterpreter`.
+//!
+//! See `docs/plan/README.md` §3.4 for the design rationale (`NonNull` to
+//! encode the non-null invariant at the safe boundary while keeping
+//! pointer-style aliasing for the FFI layer).
 
-use super::libperl_sys::*;
-
-use std::ptr;
+use std::env;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
-use std::env;
+use std::ptr;
+use std::ptr::NonNull;
 
-#[cfg(perl_useithreads)]
-#[macro_export]
-macro_rules! perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
-        $name($my_perl, $($arg),*) $(as $t)*
-    }
-}
+use libperl_sys::{CV, PerlInterpreter, Perl_newXS, perl_alloc, perl_construct, perl_destruct, perl_parse};
 
-#[cfg(not(perl_useithreads))]
-#[macro_export]
-macro_rules! perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
-        $name($($arg),*) $(as $t)*
-    }
-}
-
-#[cfg(perl_useithreads)]
-#[macro_export]
-macro_rules! unsafe_perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
-        unsafe {$name($my_perl, $($arg),*) $(as $t)*}
-    }
-}
-
-#[cfg(not(perl_useithreads))]
-#[macro_export]
-macro_rules! unsafe_perl_api {
-    ($name:ident ($my_perl:expr $(, $arg:expr)*) $(as $t:ty)*) => {
-        unsafe {$name($($arg),*) $(as $t)*}
-    }
-}
-
-
+/// A live Perl interpreter. Allocated by `perl_alloc` and torn down by
+/// `perl_destruct` on drop.
+///
+/// The `my_perl` field is `NonNull<PerlInterpreter>` so that the
+/// "interpreter is never null" invariant is encoded in the type.
+/// FFI calls extract a raw pointer via [`Perl::as_ptr`] — that's the
+/// boundary where Rust's safe-typed world meets the C ABI.
 pub struct Perl {
-    debug: bool,
+    my_perl: NonNull<PerlInterpreter>,
     args: Vec<CString>,
     env: Vec<CString>,
-    pub my_perl: *mut PerlInterpreter,
+}
+
+// `NonNull<T>` is automatically `!Send !Sync`, which matches the Perl
+// convention of "1 interpreter = 1 thread". No `unsafe impl Send/Sync`
+// is provided.
+
+impl Perl {
+    /// Allocate and construct a fresh interpreter. Panics on allocation
+    /// failure (typically OOM, very rare).
+    pub fn new() -> Self {
+        let raw = unsafe { perl_alloc() };
+        let my_perl = NonNull::new(raw)
+            .expect("perl_alloc returned null (out of memory?)");
+        unsafe { perl_construct(my_perl.as_ptr()) };
+        Perl {
+            my_perl,
+            args: Vec::new(),
+            env: Vec::new(),
+        }
+    }
+
+    /// Raw pointer for FFI. The conventional name is `my_perl` at the
+    /// call site — see `docs/plan/README.md` §3.8 for naming rules.
+    #[inline]
+    pub fn as_ptr(&self) -> *mut PerlInterpreter {
+        self.my_perl.as_ptr()
+    }
+
+    /// Wrap a raw `*mut PerlInterpreter` as a borrowed `Perl`.
+    ///
+    /// # Safety
+    /// - `p` must point to a live, valid interpreter.
+    /// - The returned `Perl` MUST NOT be dropped: its `Drop` runs
+    ///   `perl_destruct`, tearing down an interpreter this constructor
+    ///   does not own. The intended usage is to wrap in
+    ///   `core::mem::ManuallyDrop` immediately. The `#[xs_sub]`
+    ///   proc-macro does this when a body declares a `my_perl: &Perl`
+    ///   first parameter.
+    pub unsafe fn from_raw_unchecked(p: *mut PerlInterpreter) -> Self {
+        // Non-threaded builds: the `#[xs_sub]` proc-macro passes a
+        // null `my_perl` stub here. That's fine — every FFI call goes
+        // through `thx_call!`, which in non-threaded mode discards
+        // the `Perl` argument before invoking the bare libperl-sys
+        // function. So `as_ptr()` is never actually dereferenced;
+        // a dangling sentinel works as a placeholder.
+        //
+        // Threaded builds: a null pointer here is a programming
+        // error (callers must hand over a live interpreter). Callers
+        // get the same `dangling()` sentinel rather than a panic, so
+        // the failure surfaces at the first FFI deref instead of at
+        // construction — matches the rest of `unsafe`'s "garbage in,
+        // segfault out" contract.
+        let my_perl = NonNull::new(p).unwrap_or(NonNull::dangling());
+        Perl {
+            my_perl,
+            args: Vec::new(),
+            env: Vec::new(),
+        }
+    }
+
+    /// `perl_parse` with an explicit args / envp slice.
+    pub fn parse<S: AsRef<str>>(&mut self, args: &[S], envp: &[S]) -> i32 {
+        self.args = args
+            .iter()
+            .map(|a| CString::new(a.as_ref()).unwrap())
+            .collect();
+        self.env = envp
+            .iter()
+            .map(|a| CString::new(a.as_ref()).unwrap())
+            .collect();
+        self.perl_parse_inner()
+    }
+
+    /// `perl_parse` driven from `std::env::args()` / `vars()`.
+    pub fn parse_env_args(&mut self, args: env::Args, envp: env::Vars) -> i32 {
+        self.args = args
+            .map(|a| CString::new(a).unwrap())
+            .collect();
+        self.env = envp
+            .map(|(k, v)| CString::new(format!("{k}={v}")).unwrap())
+            .collect();
+        self.perl_parse_inner()
+    }
+
+    fn perl_parse_inner(&mut self) -> i32 {
+        unsafe {
+            perl_parse(
+                self.as_ptr(),
+                Some(xs_init as XsInitFn),
+                self.args.len() as c_int,
+                make_argv(&self.args).as_ptr() as *mut *mut c_char,
+                ensure_terminating_null(make_argv(&self.env)).as_ptr() as *mut *mut c_char,
+            )
+        }
+    }
+}
+
+impl Default for Perl {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Drop for Perl {
     fn drop(&mut self) {
-        if self.debug {
-            println!("destructuring my perl");
-        }
-        unsafe { perl_destruct(self.my_perl) };
+        unsafe { perl_destruct(self.as_ptr()) };
     }
 }
+
+// ─── xs_init / DynaLoader bootstrap ────────────────────────────────
 
 unsafe extern "C" {
     #[cfg(perl_useithreads)]
@@ -63,221 +141,70 @@ unsafe extern "C" {
     fn boot_DynaLoader(cv: *mut CV);
 }
 
-#[allow(non_camel_case_types)]
 #[cfg(perl_useithreads)]
-type xsinit_type = extern "C" fn(*mut PerlInterpreter) -> ();
-
-#[allow(non_camel_case_types)]
+type XsInitFn = extern "C" fn(*mut PerlInterpreter);
 #[cfg(not(perl_useithreads))]
-type xsinit_type = extern "C" fn() -> ();
+type XsInitFn = extern "C" fn();
 
 #[cfg(perl_useithreads)]
-pub fn newXS(perl: *mut PerlInterpreter, name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
-    let name = CString::new(name).unwrap();
-    let filename = CString::new(filename).unwrap();
-    unsafe {Perl_newXS(perl, name.as_ptr(), xsub, filename.as_ptr())}
+extern "C" fn xs_init(my_perl: *mut PerlInterpreter) {
+    let name = c"DynaLoader::boot_DynaLoader".as_ptr();
+    let file = c"libperl-rs".as_ptr();
+    unsafe { Perl_newXS(my_perl, name, Some(boot_DynaLoader), file) };
 }
 
 #[cfg(not(perl_useithreads))]
-pub fn newXS(name: &str, xsub: XSUBADDR_t, filename: &str) -> *mut CV {
-    let name = CString::new(name).unwrap();
-    let filename = CString::new(filename).unwrap();
-    unsafe {Perl_newXS(name.as_ptr(), xsub, filename.as_ptr())}
+extern "C" fn xs_init() {
+    let name = c"DynaLoader::boot_DynaLoader".as_ptr();
+    let file = c"libperl-rs".as_ptr();
+    unsafe { Perl_newXS(name, Some(boot_DynaLoader), file) };
 }
 
+// ─── small argv helpers ────────────────────────────────────────────
+
+fn make_argv(args: &[CString]) -> Vec<*mut c_char> {
+    args.iter().map(|a| a.as_ptr() as *mut c_char).collect()
+}
+
+fn ensure_terminating_null(mut argv: Vec<*mut c_char>) -> Vec<*mut c_char> {
+    if argv.last().is_none_or(|p| !p.is_null()) {
+        argv.push(ptr::null_mut());
+    }
+    argv
+}
+
+// ─── perl_call! macro ──────────────────────────────────────────────
+
+/// Wrap a `Perl_*` (bindgen) function call so the source compiles
+/// against both threaded and non-threaded Perl without `cfg`.
+///
+/// In threaded builds, `$my_perl` is prepended as the first argument.
+/// In non-threaded builds, `$my_perl` is type-checked, evaluated once,
+/// and discarded.
+///
+/// ```ignore
+/// let my_perl = perl.as_ptr();
+/// let cv = perl_call!(my_perl, Perl_newXS(name.as_ptr(), sub, file.as_ptr()));
+/// ```
+///
+/// (See `docs/plan/README.md` §3.6 for the argument-form rationale and
+/// hygiene constraints that prevent a no-arg variant.)
 #[cfg(perl_useithreads)]
-pub extern "C" fn xs_init(perl: *mut PerlInterpreter) {
-    newXS(perl, "DynaLoader::boot_DynaLoader", Some(boot_DynaLoader), file!());
-}
-
-#[cfg(not(perl_useithreads))]
-pub extern "C" fn xs_init() {
-    newXS("DynaLoader::boot_DynaLoader", Some(boot_DynaLoader), file!());
-}
-
-impl Perl {
-
-    pub fn new() -> Perl {
-        let perl = unsafe {perl_alloc()};
-        unsafe {perl_construct(perl)};
-        return Perl {
-            args: Vec::new(),
-            env: Vec::new(),
-            my_perl: perl,
-            debug: false,
-        }
-    }
-
-    #[cfg(perl_useithreads)]
-    pub fn my_perl(&self) -> &mut PerlInterpreter {
-        unsafe {self.my_perl.as_mut().unwrap()}
-    }
-
-    pub fn parse<S: AsRef<str>>(&mut self, args: &[S], envp: &[S]) -> i32 {
-        self.args = args.iter().map(|arg| CString::new(arg.as_ref()).unwrap())
-            .collect::<Vec<CString>>();
-        self.env = envp.iter().map(|arg| CString::new(arg.as_ref()).unwrap())
-            .collect::<Vec<CString>>();
-        
-        self.perl_parse_1()
-    }
-    
-    pub fn parse_env_args(&mut self, args: env::Args, envp: env::Vars) -> i32 {
-        self.args = args.map(|arg| CString::new(arg).unwrap())
-            .collect::<Vec<CString>>();
-        self.env = envp.map(| (key, value) | CString::new(
-            String::from(&[key, value].join("="))
-        ).unwrap()).collect::<Vec<CString>>();
-        
-        self.perl_parse_1()
-    }
-
-    fn perl_parse_1(&mut self) -> i32 {
-        unsafe {
-            perl_parse(
-                self.my_perl,
-                Some(xs_init as xsinit_type),
-                self.args.len() as c_int,
-                make_argv_from_vec(&self.args)
-                    .as_ptr() as *mut *mut c_char,
-                ensure_terminating_null(make_argv_from_vec(&self.env))
-                    .as_ptr() as *mut *mut c_char,
-            )
-        }
-    }
-    
-    pub fn hv_iterinit(&self, hv: *mut HV) -> i32 {
-        unsafe {perl_api!{Perl_hv_iterinit(self.my_perl, hv)}}
-    }
-    
-    pub fn hv_iternext(&self, hv: *mut HV) -> *mut HE {
-        unsafe {perl_api!{Perl_hv_iternext_flags(self.my_perl, hv, 0)}}
-    }
-    
-    pub fn hv_iterkey(&self, he: *mut HE) -> String {
-        let (name, nlen) = self._hv_iterkey(he);
-        let slice = unsafe {std::slice::from_raw_parts(name, nlen)};
-        String::from_utf8(slice.to_vec()).unwrap()
-    }
-
-    pub fn _hv_iterkey(&self, he: *mut HE) -> (*const u8, usize) {
-        let mut nlen: i32 = 0;
-        let name = unsafe {perl_api!{Perl_hv_iterkey(self.my_perl, he, &mut nlen) as *const u8}};
-        (name, nlen as usize)
-    }
-
-    pub fn hv_iterval<'a>(&self, hv: *mut HV, he: *mut HE) -> *mut SV {
-        unsafe {perl_api!{Perl_hv_iterval(self.my_perl, hv, he)}}
-    }
-
-    #[cfg(perl_useithreads)]
-    pub fn get_defstash(&self) -> *mut HV {
-        unsafe {*self.my_perl}.Idefstash
-    }
-    #[cfg(not(perl_useithreads))]
-    pub fn get_defstash(&self) -> *mut HV {
-        unsafe {libperl_sys::PL_defstash}
-    }
-
-    pub fn gv_stashpv(&self, name: &str, flags: i32) -> *mut HV {
-        let name = CString::new(name).unwrap();
-        unsafe {perl_api!{Perl_gv_stashpv(self.my_perl, name.as_ptr(), flags)}}
-    }
-
-    #[cfg(perl_useithreads)]
-    pub fn get_main_root(&self) -> *const op {
-        unsafe {*self.my_perl}.Imain_root
-    }
-
-    #[cfg(not(perl_useithreads))]
-    pub fn get_main_root(&self) -> *const op {
-        unsafe {libperl_sys::PL_main_root}
-    }
-
-    #[cfg(perl_useithreads)]
-    pub fn get_main_cv(&self) -> *const cv {
-        unsafe {*self.my_perl}.Imain_cv
-    }
-
-    #[cfg(not(perl_useithreads))]
-    pub fn get_main_cv(&self) -> *const cv {
-        unsafe {libperl_sys::PL_main_cv}
-    }
-
-    #[cfg(perlapi_ver26)]
-    pub fn op_class(&self, o: *const OP) -> OPclass {
-        unsafe {perl_api!{Perl_op_class(self.my_perl, o)}}
-    }
-    
-    pub fn get_sv(&self, name: &str, flags: i32) -> *mut SV {
-        let name = CString::new(name).unwrap();
-        unsafe {perl_api!{Perl_get_sv(self.my_perl, name.as_ptr(), flags)}}
-    }
-    
-    pub fn str2svpv_flags(&self, buffer: &str, flags: u32) -> *mut SV {
-        let cstr = CString::new(buffer).unwrap();
-        unsafe {
-            perl_api!{Perl_newSVpvn_flags(
-                self.my_perl,
-                cstr.as_ptr(),
-                buffer.len(),
-                SVf_UTF8 | flags
-            )}
-        }
-    }
-
-    pub fn str2svpv_mortal(&self, buffer: &str) -> *mut SV {
-        self.str2svpv_flags(buffer, SVs_TEMP)
-    }
-    
-    #[cfg(perl_useithreads)]
-    pub fn pushmark(&self, sp: *mut *mut SV) {
-        let my_perl = self.my_perl();
-        unsafe {
-            my_perl.Imarkstack_ptr = my_perl.Imarkstack_ptr.add(1)
-        };
-        if my_perl.Imarkstack_ptr == my_perl.Imarkstack_max {
-            unsafe_perl_api!{Perl_markstack_grow(my_perl)};
-        }
-        unsafe {
-            *(my_perl.Imarkstack_ptr)
-                = (sp as usize - my_perl.Istack_base as usize) as i32;
-        }
-    }
-    
-    #[cfg(perl_useithreads)]
-    pub fn free_tmps(&self) {
-        let my_perl = self.my_perl();
-        if my_perl.Itmps_ix > my_perl.Itmps_floor {
-            unsafe_perl_api!{Perl_free_tmps(self.my_perl)}
-        }
-    }
-}
-
 #[macro_export]
-macro_rules! sp_push {
-    ($sp:ident, $sv_expr:expr) => {
-        let sv = $sv_expr;
-        unsafe {
-            $sp = $sp.add(1);
-            *$sp = sv;
-        }
-    }
+macro_rules! perl_call {
+    ($my_perl:expr, $f:ident ( $($arg:expr),* $(,)? )) => {{
+        let __my_perl: *mut $crate::PerlInterpreter = $my_perl;
+        unsafe { $crate::$f(__my_perl, $($arg),*) }
+    }};
 }
 
-pub fn get_cvstash(cv: *const CV) -> *mut HV {
-    let xpvcv = unsafe {*cv}.sv_any;
-    unsafe {*xpvcv}.xcv_stash
-}
-
-pub fn make_argv_from_vec(args: &Vec<CString>) -> Vec<*mut c_char> {
-    args.iter().map(|arg| arg.as_ptr() as *mut c_char)
-        .collect::<Vec<*mut c_char>>()
-}
-
-pub fn ensure_terminating_null(mut args: Vec<*mut c_char>) -> Vec<*mut c_char> {
-    if args.len() == 0 || args.last() != None {
-        args.push(ptr::null_mut());
-    }
-    args
+#[cfg(not(perl_useithreads))]
+#[macro_export]
+macro_rules! perl_call {
+    ($my_perl:expr, $f:ident ( $($arg:expr),* $(,)? )) => {{
+        // type-check + evaluate-once for source portability with the
+        // threaded form, then discard in non-threaded
+        let _: *mut $crate::PerlInterpreter = $my_perl;
+        unsafe { $crate::$f($($arg),*) }
+    }};
 }

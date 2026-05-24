@@ -1,0 +1,16 @@
+[package]
+name = "Mytest"
+version = "0.1.0"
+edition = "2024"
+description = "End-to-end demo of #[xs_sub] / xs_boot! — a Rust XS module loadable into Perl"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libperl-rs = { path = ".." }
+libperl-sys = { path = "../libperl-sys" }
+
+[build-dependencies]
+libperl-config = { path = "../libperl-config" }

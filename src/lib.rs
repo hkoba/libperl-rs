@@ -1,22 +1,48 @@
-extern crate libperl_sys;
+//! libperl-rs — safe Rust API on top of libperl-sys / libperl-macrogen.
+//!
+//! Re-exports everything from `libperl-sys` at the crate root so that
+//! consumers can write `libperl_rs::Perl_sv_setiv(...)` and
+//! `libperl_rs::PL_main_start!(my_perl)` uniformly. The old prototype API
+//! lives on as the `libperl-proto0` workspace member; see
+//! `docs/plan/README.md` for the rebuild plan.
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate if_chain; // For OpExtractor
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
+
+pub use libperl_sys::*;
+pub use libperl_macros::*;
+
+/// `thx_call!(perl, Perl_xxx, args...)` — call a libperl-sys function
+/// that takes a leading `my_perl` parameter in threaded builds and
+/// drops that parameter in non-threaded builds. The first argument
+/// (`perl: &Perl`) is silently discarded in non-threaded mode.
+///
+/// Centralising this here keeps the hand-written `Sv`/`Av`/`Hv`
+/// constructors free of `#[cfg(perl_useithreads)]` clutter — same
+/// abstraction the `#[xs_sub]` proc-macro applies internally via
+/// `myperl_arg_prefix`.
+macro_rules! thx_call {
+    ($perl:expr, $fn:ident, $($arg:expr),* $(,)?) => {{
+        #[cfg(perl_useithreads)]
+        { libperl_sys::$fn($perl.as_ptr(), $($arg),*) }
+        #[cfg(not(perl_useithreads))]
+        { let _ = $perl; libperl_sys::$fn($($arg),*) }
+    }};
+}
+pub(crate) use thx_call;
 
 pub mod perl;
 pub use perl::*;
 
-#[cfg(test)]
-mod tests {
-    use super::perl::*;
+pub mod sv;
+pub use sv::*;
 
-    #[test]
-    fn it_works() {
-        let mut perl = Perl::new();
-        
-        // Below is expected to generate an error like following:
-        // Global symbol "$foo" requires explicit package name (did you forget to declare "my $foo"?) at -e line 1.
-        let _rc = perl.parse(&["", "-e", r#"use strict; $foo"#], &[""]);
-    }
-}
+pub mod rv;
+pub use rv::*;
+
+pub mod av;
+pub use av::*;
+
+pub mod hv;
+pub use hv::*;

@@ -1,0 +1,153 @@
+//! `xs_boot!` declarative macro implementation.
+//!
+//! Syntax:
+//!
+//! ```ignore
+//! xs_boot! {
+//!     package = "Mytest";
+//!     subs = [is_even, add];
+//! }
+//! ```
+//!
+//! Expands to a single `extern "C" fn boot_<modname>(my_perl, _cv)` that
+//! registers each listed sub with `Perl_newXS_deffile` and finishes with
+//! `Perl_xs_boot_epilog(my_perl, n_subs)`.
+//!
+//! The `<modname>` portion of the boot function name is derived from the
+//! package literal by replacing `::` with `__` (Perl XS convention) and
+//! prepending `boot_`. Example: `Foo::Bar` → `boot_Foo__Bar`.
+
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::parse::{Parse, ParseStream};
+use syn::{bracketed, parse_macro_input, Ident, LitStr, Token};
+
+struct XsBootInput {
+    package: LitStr,
+    subs: Vec<Ident>,
+}
+
+mod kw {
+    syn::custom_keyword!(package);
+    syn::custom_keyword!(subs);
+}
+
+impl Parse for XsBootInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut package: Option<LitStr> = None;
+        let mut subs: Option<Vec<Ident>> = None;
+
+        while !input.is_empty() {
+            let lookahead = input.lookahead1();
+            if lookahead.peek(kw::package) {
+                input.parse::<kw::package>()?;
+                input.parse::<Token![=]>()?;
+                package = Some(input.parse()?);
+                input.parse::<Token![;]>()?;
+            } else if lookahead.peek(kw::subs) {
+                input.parse::<kw::subs>()?;
+                input.parse::<Token![=]>()?;
+                let content;
+                bracketed!(content in input);
+                let parsed: syn::punctuated::Punctuated<Ident, Token![,]> =
+                    content.parse_terminated(Ident::parse, Token![,])?;
+                subs = Some(parsed.into_iter().collect());
+                input.parse::<Token![;]>()?;
+            } else {
+                return Err(lookahead.error());
+            }
+        }
+
+        let package = package
+            .ok_or_else(|| syn::Error::new(input.span(), "missing `package = \"...\";`"))?;
+        let subs = subs
+            .ok_or_else(|| syn::Error::new(input.span(), "missing `subs = [...];`"))?;
+        Ok(Self { package, subs })
+    }
+}
+
+pub fn xs_boot(input: TokenStream) -> TokenStream {
+    let parsed = parse_macro_input!(input as XsBootInput);
+
+    let pkg = parsed.package.value();
+    let boot_ident_str = format!("boot_{}", pkg.replace("::", "__"));
+    let boot_ident = Ident::new(&boot_ident_str, parsed.package.span());
+
+    // `Perl_xs_boot_epilog`'s `ax` parameter is `isize` in modern Perl
+    // (5.40+) but was `I32` (= `i32`) in older Perls. Emit a usize
+    // literal and `as _` so rustc infers the right integer type.
+    let n_subs = parsed.subs.len();
+
+    // libperl-macros' `build.rs` sets `cfg(perl_useithreads)` at proc-
+    // macro compile time. In threaded build the boot fn takes my_perl
+    // and forwards it to every Perl_* call; in non-threaded build the
+    // FFI signatures don't have a my_perl parameter at all.
+    let threaded = cfg!(perl_useithreads);
+
+    let boot_params = if threaded {
+        quote! {
+            my_perl: *mut ::libperl_rs::PerlInterpreter,
+            _cv: *mut ::libperl_rs::CV,
+        }
+    } else {
+        quote! { _cv: *mut ::libperl_rs::CV, }
+    };
+
+    let null_check = if threaded {
+        quote! { if my_perl.is_null() { return; } }
+    } else {
+        quote! {}
+    };
+
+    let registrations = parsed.subs.iter().map(|sub| {
+        let perl_name = format!("{pkg}::{sub}");
+        let perl_name_cstring =
+            std::ffi::CString::new(perl_name).expect("interior nul in sub name");
+        let perl_name_lit =
+            syn::LitCStr::new(perl_name_cstring.as_c_str(), sub.span());
+        if threaded {
+            quote! {
+                unsafe {
+                    ::libperl_rs::Perl_newXS_deffile(
+                        my_perl,
+                        #perl_name_lit.as_ptr(),
+                        ::core::option::Option::Some(#sub),
+                    );
+                }
+            }
+        } else {
+            quote! {
+                unsafe {
+                    ::libperl_rs::Perl_newXS_deffile(
+                        #perl_name_lit.as_ptr(),
+                        ::core::option::Option::Some(#sub),
+                    );
+                }
+            }
+        }
+    });
+
+    let epilog_call = if threaded {
+        quote! {
+            unsafe {
+                ::libperl_rs::Perl_xs_boot_epilog(my_perl, #n_subs as _);
+            }
+        }
+    } else {
+        quote! {
+            unsafe {
+                ::libperl_rs::Perl_xs_boot_epilog(#n_subs as _);
+            }
+        }
+    };
+
+    let expanded = quote! {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn #boot_ident( #boot_params ) {
+            #null_check
+            #( #registrations )*
+            #epilog_call
+        }
+    };
+    expanded.into()
+}

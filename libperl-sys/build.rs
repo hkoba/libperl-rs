@@ -1,10 +1,13 @@
 extern crate bindgen;
 
 use libperl_config::*;
+use libperl_macrogen::Pipeline;
 
 use std::env;
+use std::fs::File;
 use std::io::Write;
 use std::path::{PathBuf, Path};
+use std::process::Command;
 
 use quote::ToTokens;
 use syn::{FnArg, ForeignItem, Item, Pat, ReturnType};
@@ -31,7 +34,7 @@ fn look_updated_against<'a>(checked: &Path, against: &[&'a Path]) -> Option<&'a 
     None
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
@@ -47,13 +50,41 @@ fn main() {
 
     perl.emit_all_perlapi_versions(10);
 
+    // Surface the build-target Perl version into the rlib so that
+    // `env!()` in lib.rs can interpolate it into the crate-level
+    // doc comment (visible on docs.rs) and into `pub const`s
+    // (queryable at runtime). Crucial for docs.rs visitors who need
+    // to know which Perl version's API surface they're looking at.
+    let perl_version  = perl.dict.get("version").cloned().unwrap_or_default();
+    let perl_archname = perl.dict.get("archname").cloned().unwrap_or_default();
+    let perl_threaded = if perl.is_defined("useithreads").unwrap_or(false) {
+        "threaded"
+    } else {
+        "non-threaded"
+    };
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_VERSION={}", perl_version);
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_ARCHNAME={}", perl_archname);
+    println!("cargo:rustc-env=LIBPERL_SYS_PERL_THREADED={}", perl_threaded);
+
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
 
     let out_file = cargo_outdir().join("bindings.rs");
 
-    let do_build = if !out_file.exists() {
-        println!("# will generate new {}", out_file.display());
+    // docs.rs's build sandbox sometimes presents an OUT_DIR with a
+    // pre-existing `bindings.rs`, even though the per-version
+    // `target/` host path implies a fresh start. Whatever the root
+    // cause (rustwide caching, snapshot reuse, ...), the `do_build`
+    // short-circuit below would otherwise kick in and skip both
+    // bindgen AND macrogen — leaving the crate documented with
+    // stale generated sources. Always force a rebuild in DOCS_RS
+    // mode. Locally, the existing freshness check still applies
+    // (cargo's own incremental tracking handles the common case).
+    let force_rebuild = env::var("DOCS_RS").is_ok();
+    let do_build = if force_rebuild || !out_file.exists() {
+        if !force_rebuild {
+            println!("# will generate new {}", out_file.display());
+        }
         true
     }
     else if let Some(src_path) = look_updated_against(
@@ -85,6 +116,12 @@ fn main() {
             .formatter(bindgen::Formatter::Prettyplease)
             .rustified_enum(".*") // every enum
 
+            .derive_partialeq(true)   // #[derive(PartialEq)]
+            .derive_eq(true)          // #[derive(Eq)]
+            .derive_partialord(true)  // #[derive(PartialOrd)]
+            .derive_ord(true)         // #[derive(Ord)]
+            // .flexarray_dst(true)      // flexible array members
+
         // The input header we would like to generate
         // bindings for.
             .header(src_file_name)
@@ -101,6 +138,8 @@ fn main() {
             .allowlist_item("([SAHRGC]V|xpv).*")
             .allowlist_item("OP.*")
             .allowlist_item("G_.*")
+            .allowlist_item("regex_charset")
+            .allowlist_item("SCX_enum")
 
         // Finish the builder and generate the bindings.
             .generate()
@@ -112,10 +151,36 @@ fn main() {
             .write_to_file(out_file.to_str().unwrap())
             .expect("Couldn't write bindings!");
 
+        patch_unsized_arrays(&out_file, &archlib);
+
+        let macro_out_path = cargo_outdir().join("macro_bindings.rs");
+        let mut output = File::create(&macro_out_path)?;
+
+        let mut builder = Pipeline::builder("xs-wrapper.h")
+            .with_auto_perl_config()?
+            .with_bindings(&out_file)
+            .with_codegen_defaults();
+
+        let skip_list = cargo_topdir_file("skip-codegen.txt");
+
+        if skip_list.exists() {
+            builder = builder.with_skip_codegen_list(&skip_list);
+            println!("cargo:rerurn-if-changed={}", skip_list.display());
+        }
+
+        for p in cc_system_includes() {
+            builder = builder.with_include(p);
+        }
+
+        let _result = builder
+            .build()?
+            .generate(&mut output)?;
     }
 
     // Generate sigdb.rs from bindings.rs
     generate_sigdb(&out_file, &cargo_outdir().join("sigdb.rs"));
+
+    Ok(())
 }
 
 fn return_type_to_string(ret: &ReturnType) -> String {
@@ -213,4 +278,129 @@ fn generate_sigdb(bindings_path: &Path, sigdb_path: &Path) {
     writeln!(out, "}};").unwrap();
 
     println!("# Generated sigdb.rs with {} functions", funcs.len());
+}
+
+/// Discover the actual system include paths from the running C compiler.
+/// Used to bridge the gap between Perl's recorded `incpth` (which can point
+/// to a gcc version not present on the host, e.g. on GitHub Actions) and
+/// the headers actually available on the runner.
+fn cc_system_includes() -> Vec<PathBuf> {
+    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+    let output = match Command::new(&cc)
+        .args(["-E", "-Wp,-v", "-xc", "/dev/null"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            println!("cargo:warning=cc_system_includes: failed to run {}: {}", cc, e);
+            return Vec::new();
+        }
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let mut paths = Vec::new();
+    let mut in_list = false;
+    for line in stderr.lines() {
+        if line.contains("#include <...> search starts here") {
+            in_list = true;
+            continue;
+        }
+        if line.contains("End of search list") {
+            break;
+        }
+        if in_list {
+            let p = PathBuf::from(line.trim());
+            if p.is_dir() {
+                paths.push(p);
+            }
+        }
+    }
+    paths
+}
+
+/// Patch unsized C array declarations in the bindgen output so that
+/// indexed access works at runtime.
+///
+/// Some Perl globals are declared as unsized C arrays in the headers:
+///
+/// ```c
+/// EXTCONST char* const PL_op_name[];   /* in opcode.h */
+/// EXTCONST char* const PL_op_desc[];   /* in opcode.h */
+/// ```
+///
+/// bindgen turns these into `[T; 0usize]`, which makes any `PL_op_name[i]`
+/// access panic at runtime ("index out of bounds"). C-side redeclaration
+/// in `wrapper.h` does not help because bindgen keeps the size from the
+/// first declaration it sees.
+///
+/// We post-process `bindings.rs` to replace `0usize` with the correct
+/// length. The length comes from `#define MAXO N` in `opnames.h`, which
+/// is exactly the number of opcodes for the target Perl.
+fn patch_unsized_arrays(bindings_path: &Path, archlib: &str) {
+    let opnames_h = Path::new(archlib).join("CORE/opnames.h");
+    let maxo = read_define_int(&opnames_h, "MAXO").unwrap_or_else(|| {
+        panic!(
+            "patch_unsized_arrays: could not read `#define MAXO` from {}",
+            opnames_h.display()
+        )
+    });
+
+    // (symbol name, length) pairs — extend as new unsized arrays appear.
+    let entries: &[(&str, usize)] = &[("PL_op_name", maxo), ("PL_op_desc", maxo)];
+
+    let original = std::fs::read_to_string(bindings_path)
+        .expect("patch_unsized_arrays: failed to read bindings.rs");
+    let mut patched = original;
+    let mut changes = 0usize;
+    for (sym, len) in entries {
+        let needle = format!("pub static {sym}: [");
+        let Some(decl_start) = patched.find(&needle) else {
+            println!(
+                "cargo:warning=patch_unsized_arrays: symbol {sym} not found in bindings.rs"
+            );
+            continue;
+        };
+        let scan_from = decl_start + needle.len();
+        let Some(decl_end_rel) = patched[scan_from..].find("];") else {
+            panic!("patch_unsized_arrays: malformed declaration for {sym}");
+        };
+        let decl_end = scan_from + decl_end_rel + 2;
+        let snippet = &patched[decl_start..decl_end];
+        if !snippet.contains("0usize") {
+            // Already sized — nothing to do.
+            continue;
+        }
+        let replaced = snippet.replacen("0usize", &format!("{len}usize"), 1);
+        let mut new_src = String::with_capacity(patched.len() + 8);
+        new_src.push_str(&patched[..decl_start]);
+        new_src.push_str(&replaced);
+        new_src.push_str(&patched[decl_end..]);
+        patched = new_src;
+        changes += 1;
+    }
+    if changes > 0 {
+        std::fs::write(bindings_path, patched)
+            .expect("patch_unsized_arrays: failed to write bindings.rs");
+        println!(
+            "# patched {changes} unsized PL_* arrays in bindings.rs (MAXO = {maxo})"
+        );
+    }
+}
+
+/// Read a `#define NAME N` integer macro from a C header file.
+/// Returns `None` if not found or not parseable as an unsigned integer.
+fn read_define_int(path: &Path, name: &str) -> Option<usize> {
+    let content = std::fs::read_to_string(path).ok()?;
+    for line in content.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("#define ") else {
+            continue;
+        };
+        let mut parts = rest.trim_start().split_whitespace();
+        if parts.next() != Some(name) {
+            continue;
+        }
+        if let Some(value) = parts.next() {
+            return value.parse().ok();
+        }
+    }
+    None
 }

@@ -1,0 +1,25 @@
+[package]
+name = "libperl-proto0"
+version = "0.3.1"
+authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
+edition = "2024"
+description = "Frozen prototype API of libperl-rs (preserved for historical reference)"
+publish = false
+
+repository = "https://github.com/hkoba/libperl-rs.git"
+license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+libperl-sys = { path = "../libperl-sys" }
+typed-arena = "1.2.0"
+if_chain = "1.0"
+
+[dev-dependencies]
+libc = "0.2"
+tempfile = "3"
+
+[build-dependencies]
+libperl-config = { path = "../libperl-config" }

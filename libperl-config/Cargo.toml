@@ -9,8 +9,11 @@ edition = "2024"
 description = "Extract perl's build configs from Config.pm and others"
 
 repository = "https://github.com/hkoba/libperl-rs.git"
+documentation = "https://docs.rs/libperl-config"
+readme = "README.md"
 
-keywords = ["perl"]
+keywords = ["perl", "perl5", "config", "build", "ffi"]
+categories = ["development-tools::build-utils", "config"]
 
 license = "GPL-1.0-or-later OR Artistic-1.0-Perl"
 
