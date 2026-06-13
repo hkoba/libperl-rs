@@ -16,6 +16,8 @@ fi
 
 zparseopts -D -K x=o_xtrace n=o_dryrun \
            -reuse-target-dir=o_reuse_target_dir \
+           -use-debian-archive:=o_use_archive \
+           -force-yes=o_force_yes \
            -image:=o_image -target:=o_targetDir
 
 if (($#o_xtrace)); then set -x; fi
@@ -58,9 +60,32 @@ fi
 
 #========================================
 
-cmdList=(
+cmdList=()
+
+if (($#o_use_archive)); then
+    distName=${o_use_archive[2]#=}
+    sourcesList="$(perl -s -le 'print <<END;
+deb http://archive.debian.org/debian/ $distName main
+deb-src http://archive.debian.org/debian/ $distName main
+
+deb http://archive.debian.org/debian-security/ $distName/updates main
+deb-src http://archive.debian.org/debian-security/ $distName/updates main
+END
+' -- -distName=$distName)"
+
+
+    cmdList+=(
+        "cat /etc/apt/sources.list"
+        "echo ==="
+        "echo '$sourcesList' > /etc/apt/sources.list"
+        "cat /etc/apt/sources.list"
+        "echo ==="
+    )
+fi
+
+cmdList+=(
     'apt update'
-    'apt install -y llvm-dev libclang-dev clang'
+    "apt install -y $o_force_yes llvm-dev libclang-dev clang"
     'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh'
     'sh rustup.sh -y'
     'source $HOME/.cargo/env'
