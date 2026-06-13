@@ -64,7 +64,7 @@ cmdList=()
 
 if (($#o_use_archive)); then
     distName=${o_use_archive[2]#=}
-    sourcesList="$(perl -s -le 'print <<END;
+    sourcesListContent="$(perl -s -le 'print <<END;
 deb http://archive.debian.org/debian/ $distName main
 deb-src http://archive.debian.org/debian/ $distName main
 
@@ -77,15 +77,34 @@ END
     cmdList+=(
         "cat /etc/apt/sources.list"
         "echo ==="
-        "echo '$sourcesList' > /etc/apt/sources.list"
+        "echo '$sourcesListContent' > /etc/apt/sources.list"
         "cat /etc/apt/sources.list"
-        "echo ==="
+        "echo === doing update"
+        'apt-get update'
+        "apt-get install -y $o_force_yes apt-transport-https ca-certificates"
+    )
+
+    sourcesListContent="$(perl -s -le 'print <<END;
+deb http://apt.llvm.org/$distName/ llvm-toolchain-$distName-5.0 main
+deb-src http://apt.llvm.org/$distName/ llvm-toolchain-$distName-5.0 main
+END
+' -- -distName=$distName)"
+
+
+    cmdList+=(
+        "echo '$sourcesListContent' >> /etc/apt/sources.list"
+        'apt-get update -o Acquire::Check-Valid-Until=false'
+        "apt-get install -y $o_force_yes clang-5.0 lldb-5.0 libclang-5.0-dev llvm-5.0-dev"
+    )
+
+else
+    cmdList+=(
+        'apt-get update'
+        "apt-get install -y $o_force_yes llvm-dev libclang-dev clang"
     )
 fi
 
 cmdList+=(
-    'apt update'
-    "apt install -y $o_force_yes llvm-dev libclang-dev clang"
     'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh'
     'sh rustup.sh -y'
     'source $HOME/.cargo/env'
