@@ -36,4 +36,4 @@ quote = "1"
 phf_codegen = "0.11"
 
 libperl-config = { path = "../libperl-config", version = "^0.3.2" }
-libperl-macrogen = { version = "0.1.5" }
+libperl-macrogen = { version = "0.1.6" }
