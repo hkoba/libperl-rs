@@ -140,6 +140,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .allowlist_item("G_.*")
             .allowlist_item("regex_charset")
             .allowlist_item("SCX_enum")
+            // OP_ARGCHECK (signature) の aux 構造体と、
+            // OP_MULTIDEREF の aux アクション定数 (静的解析ツール向け)
+            .allowlist_item("op_argcheck_aux")
+            .allowlist_item("MDEREF_.*")
 
         // Finish the builder and generate the bindings.
             .generate()

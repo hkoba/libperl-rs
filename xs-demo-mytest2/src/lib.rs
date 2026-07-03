@@ -7,7 +7,7 @@
 
 use std::ffi::CStr;
 
-use libperl_rs::{xs_boot, xs_sub, Av, Hv, IV, NV, Perl, Rv, SV, Sv, UV};
+use libperl_rs::{xs_boot, xs_sub, Av, Cv, Hv, IV, NV, Perl, Rv, SV, Sv, UV};
 
 /// `Mytest2::foo($i, $l, $str)` — perlxstut EXAMPLE 4 shape.
 ///
@@ -243,6 +243,43 @@ fn multi_statfs(my_perl: &Perl, paths: &Av) -> Rv<Hv> {
     result.into_rv(my_perl)
 }
 
+/// `Mytest2::code_file($coderef)` — CvFILE of the referenced sub
+/// (`"(eval N)"` for string-eval'd subs). Demonstrates the `Cv`
+/// argument kind: the trampoline checks the caller passed a CODE
+/// reference and croaks otherwise.
+#[xs_sub]
+fn code_file(cv: Cv) -> String {
+    cv.file().unwrap_or_default()
+}
+
+/// `Mytest2::code_is_xsub($coderef)` — whether the referenced sub is
+/// an XSUB (C-implemented, no OP tree).
+#[xs_sub]
+fn code_is_xsub(cv: Cv) -> bool {
+    cv.is_xsub()
+}
+
+/// `Mytest2::code_proto($coderef)` — the sub's prototype string, or
+/// `""` when it has none.
+#[xs_sub]
+fn code_proto(cv: Cv) -> String {
+    cv.proto().unwrap_or_default()
+}
+
+/// `Mytest2::code_op_count($coderef)` — number of ops on the sub's
+/// execution-order chain (CvSTART → op_next → …); 0 for XSUBs.
+/// Demonstrates OP-tree access through `Cv::start`.
+#[xs_sub]
+fn code_op_count(cv: Cv) -> IV {
+    let mut n: IV = 0;
+    let mut op = cv.start();
+    while !op.is_null() {
+        n += 1;
+        op = unsafe { (*op).op_next as *const _ };
+    }
+    n
+}
+
 xs_boot! {
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
@@ -250,5 +287,6 @@ xs_boot! {
             wrap_iv, wrap_uv, wrap_nv, wrap_pv,
             make_pair, make_record, maybe_pair,
             sum_iv, av_len_demo, record_keys,
-            multi_statfs];
+            multi_statfs,
+            code_file, code_is_xsub, code_proto, code_op_count];
 }
