@@ -38,6 +38,9 @@ pub use perl::*;
 pub mod sv;
 pub use sv::*;
 
+pub mod cv;
+pub use cv::*;
+
 pub mod rv;
 pub use rv::*;
 

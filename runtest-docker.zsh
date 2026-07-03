@@ -16,6 +16,8 @@ fi
 
 zparseopts -D -K x=o_xtrace n=o_dryrun \
            -reuse-target-dir=o_reuse_target_dir \
+           -use-debian-archive:=o_use_archive \
+           -force-yes=o_force_yes \
            -image:=o_image -target:=o_targetDir
 
 if (($#o_xtrace)); then set -x; fi
@@ -58,9 +60,51 @@ fi
 
 #========================================
 
-cmdList=(
-    'apt update'
-    'apt install -y llvm-dev libclang-dev clang'
+cmdList=()
+
+if (($#o_use_archive)); then
+    distName=${o_use_archive[2]#=}
+    sourcesListContent="$(perl -s -le 'print <<END;
+deb http://archive.debian.org/debian/ $distName main
+deb-src http://archive.debian.org/debian/ $distName main
+
+deb http://archive.debian.org/debian-security/ $distName/updates main
+deb-src http://archive.debian.org/debian-security/ $distName/updates main
+END
+' -- -distName=$distName)"
+
+
+    cmdList+=(
+        "cat /etc/apt/sources.list"
+        "echo ==="
+        "echo '$sourcesListContent' > /etc/apt/sources.list"
+        "cat /etc/apt/sources.list"
+        "echo === doing update"
+        'apt-get update'
+        "apt-get install -y $o_force_yes apt-transport-https ca-certificates"
+    )
+
+    sourcesListContent="$(perl -s -le 'print <<END;
+deb http://apt.llvm.org/$distName/ llvm-toolchain-$distName-5.0 main
+deb-src http://apt.llvm.org/$distName/ llvm-toolchain-$distName-5.0 main
+END
+' -- -distName=$distName)"
+
+
+    cmdList+=(
+        "echo '$sourcesListContent' >> /etc/apt/sources.list"
+        'apt-get update -o Acquire::Check-Valid-Until=false'
+        "apt-get install -y $o_force_yes clang-5.0 lldb-5.0 libclang-5.0-dev llvm-5.0-dev"
+    )
+
+else
+    cmdList+=(
+        'apt-get update'
+        "apt-get install -y $o_force_yes llvm-dev libclang-dev clang"
+    )
+fi
+
+cmdList+=(
     'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh'
     'sh rustup.sh -y'
     'source $HOME/.cargo/env'

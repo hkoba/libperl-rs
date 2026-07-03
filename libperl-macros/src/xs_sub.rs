@@ -71,6 +71,12 @@ enum ArgKind {
     /// `&Hv` — borrowed hash. Same dance as `InAvRef` but checks
     /// `SVt_PVHV`. Phase 3.10d.
     InHvRef,
+    /// `Cv` — the caller passes a CODE reference (`\&sub` or an
+    /// anonymous sub); the trampoline checks `SvROK` + `SVt_PVCV`,
+    /// croaks on mismatch, and hands the body an owned (`Copy`) `Cv`
+    /// handle to the referenced CV. Static-analysis entry points
+    /// (analyze a coderef's OP tree) are the motivating use case.
+    InCvRef,
 }
 
 #[derive(Clone)]
@@ -194,7 +200,9 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 | ArgKind::InCStr
                 | ArgKind::InStr
                 | ArgKind::InRawSv
-                | ArgKind::InSv => quote! { #n },
+                | ArgKind::InSv
+                // `Cv` extraction binds `#n` as an owned (Copy) `Cv`.
+                | ArgKind::InCvRef => quote! { #n },
                 ArgKind::Out(_) => quote! { &mut #n },
                 // The trampoline injects a `__perl_ref: &Perl` local
                 // before calling the body fn (see `perl_ref_setup`).
@@ -369,7 +377,7 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         };
                     }
                 }
-                ArgKind::InAvRef | ArgKind::InHvRef => {
+                ArgKind::InAvRef | ArgKind::InHvRef | ArgKind::InCvRef => {
                     let (rust_ty, expected_svtype, type_str, ctor) = match spec.kind {
                         ArgKind::InAvRef => (
                             quote! { ::libperl_rs::Av },
@@ -382,6 +390,12 @@ pub fn xs_sub(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             quote! { ::libperl_rs::svtype::SVt_PVHV },
                             "HASH",
                             quote! { ::libperl_rs::Hv::from_raw_unchecked },
+                        ),
+                        ArgKind::InCvRef => (
+                            quote! { ::libperl_rs::Cv },
+                            quote! { ::libperl_rs::svtype::SVt_PVCV },
+                            "CODE",
+                            quote! { ::libperl_rs::Cv::from_raw_unchecked },
                         ),
                         _ => unreachable!(),
                     };
@@ -818,6 +832,9 @@ fn classify_arg_type(ty: &Type) -> Option<ArgKind> {
     if is_sv_newtype(ty) {
         return Some(ArgKind::InSv);
     }
+    if is_cv_newtype(ty) {
+        return Some(ArgKind::InCvRef);
+    }
     classify_scalar(ty).map(ArgKind::In)
 }
 
@@ -886,6 +903,12 @@ fn is_raw_sv_ptr(ty: &Type) -> bool {
 fn is_sv_newtype(ty: &Type) -> bool {
     let Type::Path(TypePath { path, .. }) = ty else { return false };
     path.segments.last().is_some_and(|s| s.ident == "Sv" && s.arguments.is_none())
+}
+
+/// True when `ty` is the bare `Cv` newtype (CODE-reference argument).
+fn is_cv_newtype(ty: &Type) -> bool {
+    let Type::Path(TypePath { path, .. }) = ty else { return false };
+    path.segments.last().is_some_and(|s| s.ident == "Cv" && s.arguments.is_none())
 }
 
 /// True when `ty` is `Rv<...>` — any single-generic `Rv` path
