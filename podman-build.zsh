@@ -5,7 +5,7 @@ appDir=$realScriptFn:h
 
 podman run --rm -it \
   -v "$appDir":/work:O -w /work \
-  rust:1.89-bookworm \
+  rust:1-bookworm \
   bash -lc '
     apt-get update &&
     apt-get install -y \
