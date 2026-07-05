@@ -1,6 +1,6 @@
 [package]
 name = "libperl-sys"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2024"
 description = "Low-level FFI declarations for libperl (Perl5), generated via bindgen + libperl-macrogen"

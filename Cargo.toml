@@ -1,6 +1,6 @@
 [package]
 name = "libperl-rs"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Kobayasi, Hiroaki <buribullet@gmail.com>"]
 edition = "2024"
 description = "Embed the Perl 5 runtime in a Rust application — safe wrapper around libperl-sys"
