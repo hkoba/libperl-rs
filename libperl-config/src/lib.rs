@@ -27,6 +27,15 @@
 //! }
 //! ```
 //!
+//! ## Selecting which perl to build against
+//!
+//! By default the `perl` found on `PATH` is used. Set the `PERL`
+//! environment variable to an absolute path to pick a specific
+//! interpreter — e.g. an ExtUtils::MakeMaker postamble runs
+//! `PERL=$(FULLPERL) cargo build ...` so the perl that ran Makefile.PL
+//! and the perl being linked against are the same. Build scripts are
+//! automatically re-run when `PERL` changes.
+//!
 //! See [`PerlConfig`] for the full API.
 
 mod perl_command;

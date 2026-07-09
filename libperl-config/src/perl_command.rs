@@ -7,9 +7,21 @@ pub struct PerlCommand {
 }
 
 impl Default for PerlCommand {
+    /// Uses the perl named by the `PERL` environment variable when set
+    /// (and non-empty), falling back to `perl` on `PATH`. Build tools
+    /// like ExtUtils::MakeMaker postambles pass `PERL=$(FULLPERL)` so
+    /// that the perl running Makefile.PL and the perl being linked
+    /// against are the same.
     fn default() -> Self {
+        // Instruct cargo to re-run the calling build script when the
+        // selected perl changes. Safe here: this crate is only used
+        // from build scripts.
+        println!("cargo:rerun-if-env-changed=PERL");
         Self {
-            perl: String::from("perl")
+            perl: std::env::var("PERL")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| String::from("perl")),
         }
     }
 }
