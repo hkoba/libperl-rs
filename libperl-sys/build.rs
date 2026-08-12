@@ -329,6 +329,8 @@ fn cc_system_includes() -> Vec<PathBuf> {
 /// ```c
 /// EXTCONST char* const PL_op_name[];   /* in opcode.h */
 /// EXTCONST char* const PL_op_desc[];   /* in opcode.h */
+/// EXT Perl_ppaddr_t PL_ppaddr[];       /* in opcode.h (mutable -> static mut) */
+/// EXT Perl_check_t  PL_check[];        /* in opcode.h (mutable -> static mut) */
 /// ```
 ///
 /// bindgen turns these into `[T; 0usize]`, which makes any `PL_op_name[i]`
@@ -349,15 +351,28 @@ fn patch_unsized_arrays(bindings_path: &Path, archlib: &str) {
     });
 
     // (symbol name, length) pairs — extend as new unsized arrays appear.
-    let entries: &[(&str, usize)] = &[("PL_op_name", maxo), ("PL_op_desc", maxo)];
+    let entries: &[(&str, usize)] = &[
+        ("PL_op_name", maxo),
+        ("PL_op_desc", maxo),
+        ("PL_ppaddr", maxo),
+        ("PL_check", maxo),
+    ];
 
     let original = std::fs::read_to_string(bindings_path)
         .expect("patch_unsized_arrays: failed to read bindings.rs");
     let mut patched = original;
     let mut changes = 0usize;
     for (sym, len) in entries {
-        let needle = format!("pub static {sym}: [");
-        let Some(decl_start) = patched.find(&needle) else {
+        // const globals come out as `pub static NAME`, mutable ones
+        // (PL_ppaddr, PL_check) as `pub static mut NAME`.
+        let needles = [
+            format!("pub static {sym}: ["),
+            format!("pub static mut {sym}: ["),
+        ];
+        let Some((decl_start, needle)) = needles
+            .iter()
+            .find_map(|n| patched.find(n).map(|pos| (pos, n)))
+        else {
             println!(
                 "cargo:warning=patch_unsized_arrays: symbol {sym} not found in bindings.rs"
             );
