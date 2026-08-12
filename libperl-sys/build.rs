@@ -169,7 +169,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if skip_list.exists() {
             builder = builder.with_skip_codegen_list(&skip_list);
-            println!("cargo:rerurn-if-changed={}", skip_list.display());
+            println!("cargo:rerun-if-changed={}", skip_list.display());
         }
 
         for p in cc_system_includes() {

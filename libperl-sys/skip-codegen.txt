@@ -12,7 +12,6 @@ GvIOn
 HeSVKEY_force
 HeSVKEY_set
 LEAVE_with_name
-MUTABLE_SV
 MgSV
 OP_DESC
 OP_NAME
@@ -42,7 +41,6 @@ RX_TAINT_on
 RX_WRAPPED_const
 RXp_ENGINE
 SAVECLEARSV
-SAVECOMPPAD
 STR_WITH_LEN
 S_new_body
 S_should_warn_nl
@@ -78,3 +76,4 @@ S_perl_hash_siphash_2_4_64
 Perl_custom_op_xop
 CopFILE_free_x
 RX_MATCH_UTF8
+AvFILL

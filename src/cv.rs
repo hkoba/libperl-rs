@@ -71,7 +71,7 @@ impl Cv {
     /// OP tree; `root` / `start` / `padlist` return null for them.
     #[inline]
     pub fn is_xsub(&self) -> bool {
-        unsafe { libperl_sys::CvISXSUB(self.as_ptr()) != 0 }
+        unsafe { libperl_sys::CvISXSUB(self.as_ptr() as *const _) != 0 }
     }
 
     /// Root of the CV's OP tree (`CvROOT`), or null for XSUBs.
@@ -80,7 +80,7 @@ impl Cv {
         if self.is_xsub() {
             std::ptr::null()
         } else {
-            unsafe { libperl_sys::CvROOT(self.as_ptr()) }
+            unsafe { libperl_sys::CvROOT(self.as_ptr() as *const _) }
         }
     }
 
@@ -90,7 +90,7 @@ impl Cv {
         if self.is_xsub() {
             std::ptr::null()
         } else {
-            unsafe { libperl_sys::CvSTART(self.as_ptr()) }
+            unsafe { libperl_sys::CvSTART(self.as_ptr() as *const _) }
         }
     }
 
@@ -100,14 +100,14 @@ impl Cv {
         if self.is_xsub() {
             std::ptr::null()
         } else {
-            unsafe { libperl_sys::CvPADLIST(self.as_ptr()) }
+            unsafe { libperl_sys::CvPADLIST(self.as_ptr() as *const _) }
         }
     }
 
     /// Source file the sub was compiled from (`CvFILE`);
     /// `"(eval N)"` for string-eval'd subs.
     pub fn file(&self) -> Option<String> {
-        let p = unsafe { libperl_sys::CvFILE(self.as_ptr()) };
+        let p = unsafe { libperl_sys::CvFILE(self.as_ptr() as *const _) };
         if p.is_null() {
             None
         } else {
