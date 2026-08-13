@@ -68,8 +68,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
+    let build_rs_path = cargo_topdir_file("build.rs");
+
+    // skip-codegen.txt は do_build の鮮度判定と rerun 監視の両方に入れる。
+    // 登録を do_build ブロック内に置くと、do_build=false で終わった run の
+    // 後は cargo が監視をやめ、リスト編集が二度と反映されなくなる。
+    let skip_list = cargo_topdir_file("skip-codegen.txt");
+    if skip_list.exists() {
+        println!("cargo:rerun-if-changed={}", skip_list.display());
+    }
 
     let out_file = cargo_outdir().join("bindings.rs");
+
+    let mut freshness_deps: Vec<&Path> = vec![&src_path, &build_rs_path];
+    if skip_list.exists() {
+        freshness_deps.push(&skip_list);
+    }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
     // pre-existing `bindings.rs`, even though the per-version
@@ -88,10 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         true
     }
     else if let Some(src_path) = look_updated_against(
-        &out_file, &[
-            &src_path,
-            &cargo_topdir_file("build.rs"),
-        ]) {
+        &out_file, &freshness_deps) {
         println!("# out_file {} is older than src {}"
                  , out_file.display(), src_path.display());
         true
@@ -165,11 +176,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_bindings(&out_file)
             .with_codegen_defaults();
 
-        let skip_list = cargo_topdir_file("skip-codegen.txt");
-
         if skip_list.exists() {
             builder = builder.with_skip_codegen_list(&skip_list);
-            println!("cargo:rerun-if-changed={}", skip_list.display());
         }
 
         for p in cc_system_includes() {

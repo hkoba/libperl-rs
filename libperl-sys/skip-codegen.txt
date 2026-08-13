@@ -77,3 +77,7 @@ Perl_custom_op_xop
 CopFILE_free_x
 RX_MATCH_UTF8
 AvFILL
+# PAD_SAVE_LOCAL: opad is an out-parameter (opad = PL_comppad); a by-value
+# Rust fn loses the write-back (dead assignment, rejected by CI -D warnings).
+# Rejecting statement macros that assign to a parameter is future generator work.
+PAD_SAVE_LOCAL
