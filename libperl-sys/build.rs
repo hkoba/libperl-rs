@@ -78,11 +78,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", skip_list.display());
     }
 
+    // perl < 5.38 では apidoc の型宣言が足りず、macrogen 0.1.7 が新たに
+    // 生成するようになったマクロの一部が誤型で出る (GH-16)。旧バージョン
+    // だけ追加の skip リストで 0.4.1 相当の生成面に留める。
+    let legacy_perl = {
+        let mut it = perl_version.split('.');
+        let major: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        major == 5 && minor < 38
+    };
+    let legacy_skip_list = cargo_topdir_file("skip-codegen-legacy.txt");
+    let use_legacy_skip = legacy_perl && legacy_skip_list.exists();
+    if use_legacy_skip {
+        println!("cargo:rerun-if-changed={}", legacy_skip_list.display());
+    }
+
     let out_file = cargo_outdir().join("bindings.rs");
 
     let mut freshness_deps: Vec<&Path> = vec![&src_path, &build_rs_path];
     if skip_list.exists() {
         freshness_deps.push(&skip_list);
+    }
+    if use_legacy_skip {
+        freshness_deps.push(&legacy_skip_list);
     }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
@@ -178,6 +196,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if skip_list.exists() {
             builder = builder.with_skip_codegen_list(&skip_list);
+        }
+        if use_legacy_skip {
+            builder = builder.with_skip_codegen_list(&legacy_skip_list);
         }
 
         for p in cc_system_includes() {

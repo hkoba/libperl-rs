@@ -1,0 +1,17 @@
+# Extra skip entries applied only when building against perl < 5.38
+# (see build.rs, GH-16). libperl-macrogen 0.1.7 newly generates these
+# macros, but older perls' apidoc data lacks the type declarations that
+# were added to perl headers later, so they come out mistyped or with
+# unrepresentable bodies. CI evidence: PR #17 runs on 5.30-5.36.
+#
+# 5.30/5.32: AvARRAY's parameter is inferred as *const SV (no apidoc
+# declaration yet), so its callers fail to compile.
+PadARRAY
+PadMAX
+PAD_SET_CUR_NOSAVE
+# 5.30-5.34: empty-macro-call elimination leaves a statement/expression
+# shape rustc rejects ("remove this semicolon").
+LOCK_LC_NUMERIC_STANDARD
+SET_NUMERIC_STANDARD
+# 5.34/5.36: mistyped generation.
+MgPV
