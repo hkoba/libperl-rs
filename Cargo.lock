@@ -285,7 +285,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "libperl-config"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "chrono",
  "regex",
@@ -627,9 +627,9 @@ dependencies = [
 
 [[package]]
 name = "libperl-macrogen"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d90726976d6489348b3e0f39e02e7f8e22642375b6e0dda40d72086dcaa1f9"
+checksum = "c6bc9a9c329bc5df7d4d61a484c601afdef62dd07c949d9d3a07ec1766ca007c"
 dependencies = [
  "clap",
  "flate2",
@@ -968,7 +968,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1152,7 +1152,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
