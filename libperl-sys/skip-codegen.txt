@@ -1,51 +1,50 @@
-# Generated from tmp/build-error.log
-# Functions whose bodies produced cargo build errors.
-CX_CURPAD_SAVE
-CX_CURPAD_SV
+# Macros/functions whose macrogen-generated bodies fail to compile.
+# 2026-08-22 に macrogen 0.1.8 + perl 5.42 (threaded) で全面再評価:
+# リストを空にして RUSTFLAGS="-D warnings" で実走し、まだ壊れるものだけ
+# 理由付きで残した (doc/notes-macrogen-0.1.8-integration.md §2)。
+# 旧リスト (0.1.7 時代の build エラー機械生成) から 33 エントリを削除。
+
+# --- E0308: 戻り値/引数の const/mut・型不一致 (apidoc 宣言 or キャスト欠落) ---
+AvFILL          # mg_size の isize を I32 に暗黙変換できない
 CopFILE_LEN
 CopSTASH_set
-CvPROTO
-DEFSV_set
-ENTER_with_name
-GvGP
-GvIOn
-HeSVKEY_force
-HeSVKEY_set
-LEAVE_with_name
-MgSV
-OP_DESC
-OP_NAME
+CvPROTO         # SvPVX_const (*const) を *mut c_char で返そうとする
+DEFSV_set       # GvGP (*const SV 宣言) へ *mut GV を渡す
+OP_DESC         # PL_op_desc (*const) を *mut c_char で返そうとする
+OP_NAME         # 同上 (PL_op_name)
 PAD_COMPNAME_GEN_set
-Perl_av_new_alloc
-Perl_av_remove_offset
-Perl_cx_popformat
-Perl_cx_popgiven
-Perl_cx_popsub_args
-Perl_cx_popsub_common
-Perl_cx_pushblock
-Perl_gimme_V
-Perl_isC9_STRICT_UTF8_CHAR
-Perl_newSV_type
-Perl_rpp_is_lone
-Perl_rpp_replace_at
-Perl_rpp_replace_at_NN
-Perl_rpp_stack_is_rc
-Perl_savepvn
-Perl_sv_setpv_freshbuf
-REF_HE_KEY
+Perl_sv_can_existdelete
+RX_WRAPPED_const
+RXp_ENGINE
+cop_hints_fetch_pvs
+memCHRs         # libc::memchr は *const c_void 引数、*const i8 を渡している
+
+# --- E0067/E0070: マクロ展開結果が Rust では代入不能な左辺値 ---
+HeSVKEY_set
 RX_MATCH_COPIED_off
 RX_MATCH_COPIED_on
 RX_MATCH_TAINTED_off
 RX_MATCH_TAINTED_on
 RX_TAINT_on
-RX_WRAPPED_const
-RXp_ENGINE
-SAVECLEARSV
-STR_WITH_LEN
-S_new_body
-S_should_warn_nl
-S_strip_spaces
-S_variant_under_utf8_count
+
+# --- E0609: union フィールドへの直接アクセス (cx_u 経由に解決されない) ---
+CX_CURPAD_SAVE
+CX_CURPAD_SV
+
+# --- ポインタ演算/キャスト/transmute の残渣 ---
+REF_HE_KEY                  # *mut i8 + usize
+S_perl_hash_siphash_1_3_64  # [u64; 4] as *mut u8 (E0605)
+S_perl_hash_siphash_2_4_64
+S_variant_under_utf8_count  # bool += usize (E0277)
+get_regex_charset           # サイズ不一致 transmute (E0512)
+Perl_bytes_to_utf8_temp_pv  # 非 mut 変数への &mut (E0596)
+
+# --- lint 起因 (CI の -D warnings で fail): 生成形が rustc lint に触れる ---
+# SvIOK_on 族: 代入値を括弧で包む形 (unnecessary_parens)
+# 注: この節の 2 つは型エラーが全て消えた後の後段 lint pass で初めて発火する
+Perl_cx_popformat           # 文末の `*Perl_CvDEPTH(..)` が unused_must_use
+STR_WITH_LEN                # `{ s ; s.len() }` — path_statements + unused len()
+Perl_sv_setpv_freshbuf
 SvIOK_on
 SvIOK_only
 SvIOK_only_UV
@@ -59,25 +58,10 @@ SvPOK_only
 SvPOK_only_UTF8
 SvREADONLY_on
 SvWEAKREF_on
-UNICODE_IS_REPLACEMENT
-UNICODE_IS_SUPER
-cop_hints_fetch_pvs
-cophh_fetch_pvs
-get_regex_charset
-hv_fetch_ent
-memCHRs
-newSVpvn_utf8
-sbox32_seed_state128
-set_arena
-Perl_bytes_to_utf8_temp_pv
-Perl_sv_can_existdelete
-S_perl_hash_siphash_1_3_64
-S_perl_hash_siphash_2_4_64
-Perl_custom_op_xop
-CopFILE_free_x
-RX_MATCH_UTF8
-AvFILL
+
+# --- out-parameter への書き戻しが by-value 引数で消える (dead assignment) ---
 # PAD_SAVE_LOCAL: opad is an out-parameter (opad = PL_comppad); a by-value
 # Rust fn loses the write-back (dead assignment, rejected by CI -D warnings).
 # Rejecting statement macros that assign to a parameter is future generator work.
 PAD_SAVE_LOCAL
+sbox32_seed_state128        # s0/s1/s2 が out-parameter

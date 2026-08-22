@@ -78,19 +78,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", skip_list.display());
     }
 
-    // perl < 5.38 では apidoc の型宣言が足りず、macrogen 0.1.7 が新たに
-    // 生成するようになったマクロの一部が誤型で出る (GH-16)。旧バージョン
-    // だけ追加の skip リストで 0.4.1 相当の生成面に留める。
-    let legacy_perl = {
+    let perl_minor: u32 = {
         let mut it = perl_version.split('.');
         let major: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
         let minor: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-        major == 5 && minor < 38
+        if major == 5 { minor } else { 0 }
     };
+
+    // perl < 5.38 では apidoc の型宣言が足りず、macrogen が生成する
+    // マクロの一部が誤型で出る (GH-16)。旧バージョンだけ追加の skip
+    // リストを適用する。
     let legacy_skip_list = cargo_topdir_file("skip-codegen-legacy.txt");
-    let use_legacy_skip = legacy_perl && legacy_skip_list.exists();
+    let use_legacy_skip = perl_minor < 38 && legacy_skip_list.exists();
     if use_legacy_skip {
         println!("cargo:rerun-if-changed={}", legacy_skip_list.display());
+    }
+
+    // 5.32〜5.40 でのみ生成が不成立になる関数向け (< 5.42 で適用)。
+    // 詳細は skip-codegen-pre42.txt のコメント参照。
+    let pre42_skip_list = cargo_topdir_file("skip-codegen-pre42.txt");
+    let use_pre42_skip = perl_minor < 42 && pre42_skip_list.exists();
+    if use_pre42_skip {
+        println!("cargo:rerun-if-changed={}", pre42_skip_list.display());
     }
 
     // Partial eval 必須 API (GH-16)。生成されなかったら理由付きで fail-fast。
@@ -118,6 +127,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if use_legacy_skip {
         freshness_deps.push(&legacy_skip_list);
+    }
+    if use_pre42_skip {
+        freshness_deps.push(&pre42_skip_list);
     }
     if require_list.exists() {
         freshness_deps.push(&require_list);
@@ -227,6 +239,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if use_legacy_skip {
             builder = builder.with_skip_codegen_list(&legacy_skip_list);
+        }
+        if use_pre42_skip {
+            builder = builder.with_skip_codegen_list(&pre42_skip_list);
         }
         if require_list.exists() {
             builder = builder.with_require_codegen_list(&require_list);
