@@ -64,8 +64,14 @@ fn perl_t_suite_passes() {
 /// staging into `blib/` is trivial.
 fn build_cdylib(workspace_root: &Path) -> PathBuf {
     let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
-    let so = workspace_root
-        .join("target")
+    // CARGO_TARGET_DIR may relocate the build tree outside the
+    // workspace (containerized CI does this); a relative value is
+    // resolved by cargo against its cwd, which is workspace_root here.
+    let target_dir = env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .map(|p| if p.is_absolute() { p } else { workspace_root.join(p) })
+        .unwrap_or_else(|| workspace_root.join("target"));
+    let so = target_dir
         .join(profile)
         .join(format!("lib{MOD_NAME}.so"));
 
