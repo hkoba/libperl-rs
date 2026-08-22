@@ -93,6 +93,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", legacy_skip_list.display());
     }
 
+    // Partial eval 必須 API (GH-16)。生成されなかったら理由付きで fail-fast。
+    let require_list = cargo_topdir_file("require-codegen.txt");
+    if require_list.exists() {
+        println!("cargo:rerun-if-changed={}", require_list.display());
+    }
+
     let out_file = cargo_outdir().join("bindings.rs");
 
     // mtime 比較は wrapper.h / build.rs / skip リストの変化しか見ないため、
@@ -112,6 +118,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if use_legacy_skip {
         freshness_deps.push(&legacy_skip_list);
+    }
+    if require_list.exists() {
+        freshness_deps.push(&require_list);
     }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
@@ -218,6 +227,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if use_legacy_skip {
             builder = builder.with_skip_codegen_list(&legacy_skip_list);
+        }
+        if require_list.exists() {
+            builder = builder.with_require_codegen_list(&require_list);
         }
 
         for p in cc_system_includes() {
