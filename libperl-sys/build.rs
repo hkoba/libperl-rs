@@ -95,6 +95,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let out_file = cargo_outdir().join("bindings.rs");
 
+    // mtime 比較は wrapper.h / build.rs / skip リストの変化しか見ないため、
+    // macrogen 側だけが更新された場合 (dependency bump や path 依存での開発中)
+    // に stale な macro_bindings.rs が残る (doc/notes-macrogen-0.1.8-integration.md
+    // §4)。macrogen の apidoc data version をスタンプファイルに書き、
+    // 現在の値と食い違ったら再生成を強制する。
+    let macrogen_stamp = cargo_outdir().join("macrogen-apidoc-version.txt");
+    let macrogen_updated = match std::fs::read_to_string(&macrogen_stamp) {
+        Ok(s) => s.trim() != libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION,
+        Err(_) => true,
+    };
+
     let mut freshness_deps: Vec<&Path> = vec![&src_path, &build_rs_path];
     if skip_list.exists() {
         freshness_deps.push(&skip_list);
@@ -117,6 +128,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !force_rebuild {
             println!("# will generate new {}", out_file.display());
         }
+        true
+    }
+    else if macrogen_updated {
+        println!("# macrogen apidoc data version changed (stamp {} != {}), regenerating"
+                 , std::fs::read_to_string(&macrogen_stamp)
+                     .map(|s| s.trim().to_string())
+                     .unwrap_or_else(|_| "<missing>".to_string())
+                 , libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION);
         true
     }
     else if let Some(src_path) = look_updated_against(
@@ -208,6 +227,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _result = builder
             .build()?
             .generate(&mut output)?;
+
+        std::fs::write(&macrogen_stamp,
+                       libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION)?;
     }
 
     // Generate sigdb.rs from bindings.rs
