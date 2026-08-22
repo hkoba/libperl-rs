@@ -79,10 +79,9 @@ jobs:
           - '5.38'
           - '5.40'
           - '5.42'
-          # '5' (latest) now resolves to 5.44, but libperl-macrogen's
-          # bundled apidoc data currently ends at 5.42, so the build
-          # aborts with ApidocResolve(JsonNotFound). Re-add once the
-          # macrogen side ships 5.44 apidoc data (tracked upstream).
-          # - '5'
+          # '5' (latest) currently resolves to 5.44; libperl-macrogen
+          # 0.1.8 ships 5.44 apidoc data, so this cell is live again
+          # (macrogen side verified 5.44-threaded downstream green).
+          - '5'
         target:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
