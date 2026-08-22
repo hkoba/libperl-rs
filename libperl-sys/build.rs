@@ -68,8 +68,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let src_file_name = "wrapper.h";
     let src_path = cargo_topdir_file(src_file_name);
+    let build_rs_path = cargo_topdir_file("build.rs");
+
+    // skip-codegen.txt は do_build の鮮度判定と rerun 監視の両方に入れる。
+    // 登録を do_build ブロック内に置くと、do_build=false で終わった run の
+    // 後は cargo が監視をやめ、リスト編集が二度と反映されなくなる。
+    let skip_list = cargo_topdir_file("skip-codegen.txt");
+    if skip_list.exists() {
+        println!("cargo:rerun-if-changed={}", skip_list.display());
+    }
+
+    let perl_minor: u32 = {
+        let mut it = perl_version.split('.');
+        let major: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        if major == 5 { minor } else { 0 }
+    };
+
+    // perl < 5.38 では apidoc の型宣言が足りず、macrogen が生成する
+    // マクロの一部が誤型で出る (GH-16)。旧バージョンだけ追加の skip
+    // リストを適用する。
+    let legacy_skip_list = cargo_topdir_file("skip-codegen-legacy.txt");
+    let use_legacy_skip = perl_minor < 38 && legacy_skip_list.exists();
+    if use_legacy_skip {
+        println!("cargo:rerun-if-changed={}", legacy_skip_list.display());
+    }
+
+    // 5.32〜5.40 でのみ生成が不成立になる関数向け (< 5.42 で適用)。
+    // 詳細は skip-codegen-pre42.txt のコメント参照。
+    let pre42_skip_list = cargo_topdir_file("skip-codegen-pre42.txt");
+    let use_pre42_skip = perl_minor < 42 && pre42_skip_list.exists();
+    if use_pre42_skip {
+        println!("cargo:rerun-if-changed={}", pre42_skip_list.display());
+    }
+
+    // Partial eval 必須 API (GH-16)。生成されなかったら理由付きで fail-fast。
+    let require_list = cargo_topdir_file("require-codegen.txt");
+    if require_list.exists() {
+        println!("cargo:rerun-if-changed={}", require_list.display());
+    }
 
     let out_file = cargo_outdir().join("bindings.rs");
+
+    // mtime 比較は wrapper.h / build.rs / skip リストの変化しか見ないため、
+    // macrogen 側だけが更新された場合 (dependency bump や path 依存での開発中)
+    // に stale な macro_bindings.rs が残る (doc/notes-macrogen-0.1.8-integration.md
+    // §4)。macrogen の apidoc data version をスタンプファイルに書き、
+    // 現在の値と食い違ったら再生成を強制する。
+    let macrogen_stamp = cargo_outdir().join("macrogen-apidoc-version.txt");
+    let macrogen_updated = match std::fs::read_to_string(&macrogen_stamp) {
+        Ok(s) => s.trim() != libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION,
+        Err(_) => true,
+    };
+
+    let mut freshness_deps: Vec<&Path> = vec![&src_path, &build_rs_path];
+    if skip_list.exists() {
+        freshness_deps.push(&skip_list);
+    }
+    if use_legacy_skip {
+        freshness_deps.push(&legacy_skip_list);
+    }
+    if use_pre42_skip {
+        freshness_deps.push(&pre42_skip_list);
+    }
+    if require_list.exists() {
+        freshness_deps.push(&require_list);
+    }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
     // pre-existing `bindings.rs`, even though the per-version
@@ -87,11 +151,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         true
     }
+    else if macrogen_updated {
+        println!("# macrogen apidoc data version changed (stamp {} != {}), regenerating"
+                 , std::fs::read_to_string(&macrogen_stamp)
+                     .map(|s| s.trim().to_string())
+                     .unwrap_or_else(|_| "<missing>".to_string())
+                 , libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION);
+        true
+    }
     else if let Some(src_path) = look_updated_against(
-        &out_file, &[
-            &src_path,
-            &cargo_topdir_file("build.rs"),
-        ]) {
+        &out_file, &freshness_deps) {
         println!("# out_file {} is older than src {}"
                  , out_file.display(), src_path.display());
         true
@@ -165,11 +234,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_bindings(&out_file)
             .with_codegen_defaults();
 
-        let skip_list = cargo_topdir_file("skip-codegen.txt");
-
         if skip_list.exists() {
             builder = builder.with_skip_codegen_list(&skip_list);
-            println!("cargo:rerurn-if-changed={}", skip_list.display());
+        }
+        if use_legacy_skip {
+            builder = builder.with_skip_codegen_list(&legacy_skip_list);
+        }
+        if use_pre42_skip {
+            builder = builder.with_skip_codegen_list(&pre42_skip_list);
+        }
+        if require_list.exists() {
+            builder = builder.with_require_codegen_list(&require_list);
         }
 
         for p in cc_system_includes() {
@@ -179,6 +254,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _result = builder
             .build()?
             .generate(&mut output)?;
+
+        std::fs::write(&macrogen_stamp,
+                       libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION)?;
     }
 
     // Generate sigdb.rs from bindings.rs
@@ -329,6 +407,8 @@ fn cc_system_includes() -> Vec<PathBuf> {
 /// ```c
 /// EXTCONST char* const PL_op_name[];   /* in opcode.h */
 /// EXTCONST char* const PL_op_desc[];   /* in opcode.h */
+/// EXT Perl_ppaddr_t PL_ppaddr[];       /* in opcode.h (mutable -> static mut) */
+/// EXT Perl_check_t  PL_check[];        /* in opcode.h (mutable -> static mut) */
 /// ```
 ///
 /// bindgen turns these into `[T; 0usize]`, which makes any `PL_op_name[i]`
@@ -349,15 +429,28 @@ fn patch_unsized_arrays(bindings_path: &Path, archlib: &str) {
     });
 
     // (symbol name, length) pairs — extend as new unsized arrays appear.
-    let entries: &[(&str, usize)] = &[("PL_op_name", maxo), ("PL_op_desc", maxo)];
+    let entries: &[(&str, usize)] = &[
+        ("PL_op_name", maxo),
+        ("PL_op_desc", maxo),
+        ("PL_ppaddr", maxo),
+        ("PL_check", maxo),
+    ];
 
     let original = std::fs::read_to_string(bindings_path)
         .expect("patch_unsized_arrays: failed to read bindings.rs");
     let mut patched = original;
     let mut changes = 0usize;
     for (sym, len) in entries {
-        let needle = format!("pub static {sym}: [");
-        let Some(decl_start) = patched.find(&needle) else {
+        // const globals come out as `pub static NAME`, mutable ones
+        // (PL_ppaddr, PL_check) as `pub static mut NAME`.
+        let needles = [
+            format!("pub static {sym}: ["),
+            format!("pub static mut {sym}: ["),
+        ];
+        let Some((decl_start, needle)) = needles
+            .iter()
+            .find_map(|n| patched.find(n).map(|pos| (pos, n)))
+        else {
             println!(
                 "cargo:warning=patch_unsized_arrays: symbol {sym} not found in bindings.rs"
             );

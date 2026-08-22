@@ -1,0 +1,11 @@
+# Extra skip entries applied only when building against perl < 5.42
+# (see build.rs, GH-16). skip-codegen-legacy.txt (< 5.38) と違い、
+# こちらは 5.38/5.40 でも生成が不成立になる関数を集める。
+# 2026-08-22 の再評価 (multi-perl.tcl --downstream, macrogen 0.1.8) で
+# 5.42/5.44 では正常に生成されることを確認済みのため、全版 skip の
+# skip-codegen.txt には入れず新しい perl では API を生かす。
+
+# 5.36-5.40: E0308 x3 + unreachable expression (5.42 で本体実装が変わり解消)
+Perl_newSV_type
+# 5.32-5.40: 5.32/5.34 は E0308、5.36-5.40 は E0384 (非 mut 変数への再代入)
+Perl_isC9_STRICT_UTF8_CHAR

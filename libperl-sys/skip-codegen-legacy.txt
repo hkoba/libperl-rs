@@ -1,0 +1,31 @@
+# Extra skip entries applied only when building against perl < 5.38
+# (see build.rs, GH-16).
+# 2026-08-22 に macrogen 0.1.8 で全面再評価: リストを空にして
+# 5.30/5.32/5.34/5.36-threaded の downstream 実走 (macrogen 側
+# scripts/multi-perl.tcl --downstream) を行い、error / warning (CI は
+# -D warnings で warning も fail) が出たものだけ理由付きで残した。
+# 0.1.7 時代の PadARRAY / PadMAX / PAD_SET_CUR_NOSAVE は 0.1.8 の
+# apidoc 補正 (pad.h の `*` 抜け修正) で解消したため削除。
+
+# 5.30-5.34: 空マクロ消去後の文/式形状が「unnecessary trailing
+# semicolon(s)」warning になる
+LOCK_LC_NUMERIC_STANDARD
+SET_NUMERIC_STANDARD
+
+# 5.34/5.36: lp が out-parameter で、by-value 引数への書き戻しが消える
+# (「value passed to `lp` is never read」warning)
+MgPV
+
+# 5.34: E0308
+# (5.38/5.40 でも壊れる Perl_isC9_STRICT_UTF8_CHAR / Perl_newSV_type は
+#  skip-codegen-pre42.txt 側に置いている)
+Perl_is_c9strict_utf8_string_loclen
+
+# 5.32/5.34: hash seed 初期化系の「unnecessary trailing semicolon」warning
+# (全版 skip の sbox32_seed_state128 と同族。この 2 つは 5.36 以降は
+# そもそも生成されない)
+sbox32_seed_state96
+zaphod32_seed_state
+
+# 5.34: while 条件の「unnecessary parentheses」warning
+Perl_is_utf8_invariant_string_loc

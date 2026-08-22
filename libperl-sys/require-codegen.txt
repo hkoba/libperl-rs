@@ -1,0 +1,12 @@
+# Partial evaluation (GH-16) に必須の API セット。
+# macrogen 側 samples/require-partial-eval.txt と同一セット。
+# これらが macrogen で生成されなかった場合、rustc の E0425 を待たずに
+# build.rs 段階で「なぜ生成されなかったか」の理由付きで fail する
+# (libperl-macrogen 0.1.8 の with_require_codegen_list)。
+#
+# 書式: 1 行 1 名前、# 以降はコメント (skip-codegen-list と同一書式)
+CvFILE
+CvROOT
+CvSTART
+CvPADLIST
+CvISXSUB

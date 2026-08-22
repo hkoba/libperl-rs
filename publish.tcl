@@ -96,5 +96,7 @@ STEP 3 publish {
 STEP 4 事後処理 {
     RUN git tag v$::newVersion -m "Bump version to v$::newVersion"
 
-    RUN git push --tags && git push
+    RUN git push --tags
+
+    RUN git push
 }
