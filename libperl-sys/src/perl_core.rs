@@ -27,3 +27,10 @@ pub type perl_stack_size_t = isize;
 
 #[cfg(not(perlapi_ver40))]
 pub type perl_stack_size_t = i32;
+
+// Compat: `Stack_off_t` first appeared in the perl 5.40 stack refactor;
+// before that the mark stack was plain `I32`. Alias it on older perls so
+// downstream code can use `Stack_off_t` uniformly across versions
+// (bindgen emits the real typedef on 5.40+).
+#[cfg(not(perlapi_ver40))]
+pub type Stack_off_t = I32;
