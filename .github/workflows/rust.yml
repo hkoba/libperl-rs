@@ -72,6 +72,9 @@ jobs:
       matrix:
         threaded: [ true, false ]
         perl-version:
+          # 5.28/5.30 の SvREFCNT_dec/Padlist 系は libperl-macrogen 0.1.11
+          # (apidoc data 1.14) で生成されるようになった (GH-16 第 2 段)
+          - '5.28'
           - '5.30'
           - '5.32'
           - '5.34'
