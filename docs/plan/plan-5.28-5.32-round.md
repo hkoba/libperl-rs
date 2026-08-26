@@ -135,3 +135,19 @@ macrogen 側 samples/require-partial-eval.txt との同期: PadlistARRAY/
 PadlistMAX は同期済み (macrogen 0.1.11 で先行追加済み)。PAD_SET_CUR /
 Perl_SvREFCNT_dec の扱いも同ファイルのコメントに記載済みのため、
 追加の同期依頼は不要。
+
+## 6. 最終確認結果 (2026-08-26)
+
+- libperl-rs CI (run 32963180261, branch macrogen-0.1.11 = PR #23):
+  **全 18 セル green** (threaded/non-threaded × 5.28〜5.42 + '5')。
+- PartialEval CI workflow_dispatch (run 32963825520,
+  libperl-rs-ref=macrogen-0.1.11): **run 全体 success。
+  5.28/5.30/5.32 ithreads probe を含む ithreads 全セル
+  (5.28〜'5') green** — §3 の merge 前提条件を達成。
+  no-ithreads 全滅と 5.20〜5.26 probe 失敗は §4 のスコープ外どおり。
+- 前提修正: PartialEval の Cargo.lock が macrogen 0.1.10 を pin して
+  いたため --locked の dispatch が全セル失敗 → 同リポジトリ main に
+  lock bump (14ba1ef) を push して解消 (master libperl-rs の ^0.1.10
+  要求も 0.1.11 を満たすため先行 bump は無害。push CI も green)。
+
+残タスク: PR #23 の merge (green 確認済みのため merge 可能な状態)。
