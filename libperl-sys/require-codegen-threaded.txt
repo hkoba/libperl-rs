@@ -1,0 +1,8 @@
+# threaded (useithreads) ビルド限定の partial eval 必須 API (GH-16)。
+# build.rs が useithreads 検出時のみ with_require_codegen_list で適用する。
+# non-threaded perl では PAD_SET_CUR_NOSAVE が unresolved のため
+# PAD_SET_CUR は従来から不生成 (macrogen scripts/multi-perl-expect の
+# v5.28/v5.30.json threaded 節の must_generate_extra と対応)。
+#
+# 書式: 1 行 1 名前、# 以降はコメント (require-codegen.txt と同一書式)
+PAD_SET_CUR

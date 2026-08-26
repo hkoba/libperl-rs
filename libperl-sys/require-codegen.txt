@@ -11,3 +11,9 @@ CvSTART
 CvPADLIST
 CvISXSUB
 CopLINE
+PadlistARRAY  # 5.28/5.30 の auto skip は macrogen apidoc data 1.14 で解除 (5.26 以前は未解除 = 次段)
+PadlistMAX    # 同上
+# PAD_SET_CUR は non-threaded perl では生成されない (PAD_SET_CUR_NOSAVE が
+# unresolved) ため require-codegen-threaded.txt 側に置く。
+# Perl_SvREFCNT_dec は 5.30 以前に存在しない名前 (5.31.x の S_→Perl_ 改名で
+# 登場) なので require 不可 — src/perl_core.rs の compat alias で提供する。
