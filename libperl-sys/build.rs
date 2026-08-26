@@ -57,7 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // to know which Perl version's API surface they're looking at.
     let perl_version  = perl.dict.get("version").cloned().unwrap_or_default();
     let perl_archname = perl.dict.get("archname").cloned().unwrap_or_default();
-    let perl_threaded = if perl.is_defined("useithreads").unwrap_or(false) {
+    let perl_use_ithreads = perl.is_defined("useithreads").unwrap_or(false);
+    let perl_threaded = if perl_use_ithreads {
         "threaded"
     } else {
         "non-threaded"
@@ -108,6 +109,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", require_list.display());
     }
 
+    // threaded 限定の必須 API (PAD_SET_CUR は non-threaded では
+    // PAD_SET_CUR_NOSAVE が unresolved で生成されないため別リスト)。
+    let threaded_require_list = cargo_topdir_file("require-codegen-threaded.txt");
+    let use_threaded_require = perl_use_ithreads && threaded_require_list.exists();
+    if use_threaded_require {
+        println!("cargo:rerun-if-changed={}", threaded_require_list.display());
+    }
+
     let out_file = cargo_outdir().join("bindings.rs");
 
     // mtime 比較は wrapper.h / build.rs / skip リストの変化しか見ないため、
@@ -133,6 +142,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if require_list.exists() {
         freshness_deps.push(&require_list);
+    }
+    if use_threaded_require {
+        freshness_deps.push(&threaded_require_list);
     }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
@@ -245,6 +257,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if require_list.exists() {
             builder = builder.with_require_codegen_list(&require_list);
+        }
+        if use_threaded_require {
+            builder = builder.with_require_codegen_list(&threaded_require_list);
         }
 
         for p in cc_system_includes() {

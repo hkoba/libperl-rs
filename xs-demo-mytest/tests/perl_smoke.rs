@@ -26,6 +26,19 @@ fn perl_t_suite_passes() {
         return;
     }
 
+    // The t/ suite is written against Test2::V0, which is only in core
+    // since perl 5.40 (CI installs Test2::Suite via cpanm; bare
+    // containers of older perls don't have it).
+    let has_test2 = Command::new("perl")
+        .args(["-MTest2::V0", "-e1"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !has_test2 {
+        eprintln!("Test2::V0 not available — skipping Perl smoke test");
+        return;
+    }
+
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir
         .parent()

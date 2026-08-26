@@ -34,3 +34,12 @@ pub type perl_stack_size_t = i32;
 // (bindgen emits the real typedef on 5.40+).
 #[cfg(not(perlapi_ver40))]
 pub type Stack_off_t = I32;
+
+// Compat: perl 5.31.x renamed the inline refcount helper `S_SvREFCNT_dec`
+// to `Perl_SvREFCNT_dec`, so the `Perl_` name only exists from 5.32 on.
+// On 5.28/5.30 macrogen generates `S_SvREFCNT_dec` with the identical
+// signature (libperl-macrogen apidoc data 1.14); alias it so downstream
+// code can call `Perl_SvREFCNT_dec` uniformly across versions. Gated to
+// >= 5.28 because older perls don't generate `S_SvREFCNT_dec` yet.
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
