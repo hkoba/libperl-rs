@@ -13,7 +13,10 @@
 use std::env;
 use std::ffi::CStr;
 
-use libperl_rs::{op, Perl, PL_main_start, PL_op_name};
+// `op` (the raw struct) comes from libperl-sys directly: in libperl-rs
+// the name `op` is taken by the module hosting the `Op` newtype.
+use libperl_rs::{Perl, PL_main_start, PL_op_name};
+use libperl_sys::op;
 
 fn scan_ops(mut op: *const op) {
     while !op.is_null() {

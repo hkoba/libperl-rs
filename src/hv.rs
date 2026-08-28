@@ -79,6 +79,21 @@ impl Hv {
         HvIter { perl, hv: self.0, _marker: ::core::marker::PhantomData }
     }
 
+    /// The hash's name (`HvNAME`) — non-`None` exactly for stashes
+    /// (package symbol tables), whose name is the package name.
+    pub fn name(&self) -> Option<String> {
+        let p = unsafe { libperl_sys::HvNAME(self.0.as_ptr()) };
+        if p.is_null() {
+            None
+        } else {
+            Some(
+                unsafe { std::ffi::CStr::from_ptr(p) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        }
+    }
+
     /// Raw pointer for FFI.
     #[inline]
     pub fn as_ptr(&self) -> *mut HV {
