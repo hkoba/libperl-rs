@@ -138,7 +138,10 @@ impl Cv {
     /// file / line.
     #[inline]
     pub fn gv(&self, perl: &Perl) -> Option<Gv> {
-        let gv = unsafe { crate::thx_call!(perl, CvGV, self.as_ptr() as *const SV) };
+        // Inferred cast: the generated `CvGV` takes `*const SV` on
+        // most perls but `*const CV` on exactly 5.32 (apidoc type
+        // normalisation difference); `as *const _` fits both.
+        let gv = unsafe { crate::thx_call!(perl, CvGV, self.as_ptr() as *const _) };
         Gv::from_raw(gv)
     }
 
