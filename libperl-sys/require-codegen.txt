@@ -31,10 +31,15 @@ GvSTASH
 HEK_KEY
 HvNAME
 CvGV
+GvGP
+GvCV
+GvFILE
+GvLINE
 # Padnamelist{MAX,ARRAY} / Padname{PV,LEN,TYPE} は 5.28/5.30 で
 # CODEGEN_SUPPRESSED (apidoc patch) のため require 不可 —
 # src/perl_core.rs の compat 実装で 5.28/5.30 に提供する (次の
 # macrogen unskip round の解除候補)。
-# GvGP / GvLINE / GvFILE は 5.44 で CASCADE_UNAVAILABLE (GvGP 依存)
-# のため require 不可 — libperl-rs 側 (src/gv.rs) が gp 構造体を
-# 直接読む (perl-LibPerlRs-PartialEval raw.rs の gv_cv と同手法)。
+# 注: GvGP 系は当初「5.44 で CASCADE_UNAVAILABLE」と誤認していたが、
+# これは古い実験状態の multi-perl 成果物 (stale apidoc-cache) の
+# 見誤りで、v0.1.11 (apidoc data 1.14) では 5.28〜5.44 の全 leg ×
+# 両モードで生成されることを再確認済み。

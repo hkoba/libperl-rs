@@ -3,18 +3,17 @@
 //! stash slot or a CV to package-qualified names and to the CV / file
 //! / line behind the glob.
 //!
-//! Name accessors delegate to macrogen-emitted official API
-//! (`GvNAME_HEK`, `GvSTASH`, `HEK_KEY`, `HvNAME`, `isGV_with_GP`).
-//! The GP-slot accessors (`cv` / `file` / `line`) read the `gp`
-//! struct directly instead: the corresponding macros are not
-//! generatable across the whole support range (`GvGP` — and with it
-//! `GvCV` / `GvFILE` / `GvLINE` — is `CASCADE_UNAVAILABLE` on perl
-//! 5.44), while the struct layout is stable. Same approach as
-//! perl-LibPerlRs-PartialEval's `raw.rs::gv_cv`.
+//! All accessors delegate to the macrogen-emitted official API
+//! (`isGV_with_GP`, `GvNAME_HEK`, `GvSTASH`, `HEK_KEY`, `HvNAME`,
+//! `GvGP`, `GvCV`, `GvFILE`, `GvLINE` — generation verified across
+//! 5.28-5.44, both threading modes). The generated GP-slot macros
+//! dereference `GvGP` without a null check, faithful to the C
+//! macros, so the methods here add the null guard and Option-ify
+//! the result.
 
 use std::ptr::NonNull;
 
-use libperl_sys::{GV, HEK, SV, gp};
+use libperl_sys::{GP, GV, HEK, SV};
 
 use crate::Cv;
 
@@ -90,41 +89,39 @@ impl Gv {
     }
 
     /// The glob's GP ("glob pointer" — the shared slot block), or
-    /// null. Direct struct read; see the module doc for why this
-    /// doesn't go through a generated `GvGP`.
+    /// null for GP-less GV shells (`GvGP`).
     #[inline]
-    fn gp(&self) -> *mut gp {
-        unsafe { (*self.0.as_ptr()).sv_u.svu_gp }
+    fn gp(&self) -> *mut GP {
+        // Inferred casts here and below: the generated Gv accessors
+        // take `*const SV` except `GvCV` (`*const GV`); `as *const _`
+        // fits each (same lesson as `Cv::gv`'s 5.32 quirk).
+        unsafe { libperl_sys::GvGP(self.as_ptr() as *const _) }
     }
 
-    /// The CV in the glob's CODE slot (`GvCV` equivalent), if any.
+    /// The CV in the glob's CODE slot (`GvCV`), if any.
     #[inline]
     pub fn cv(&self) -> Option<Cv> {
-        let gp = self.gp();
-        if gp.is_null() {
+        if self.gp().is_null() {
             return None;
         }
-        Cv::from_raw(unsafe { (*gp).gp_cv })
+        Cv::from_raw(unsafe { libperl_sys::GvCV(self.as_ptr() as *const _) })
     }
 
-    /// Source file where the glob was first created (`GvFILE`
-    /// equivalent, from `gp_file_hek`).
+    /// Source file where the glob was first created (`GvFILE`).
     pub fn file(&self) -> Option<String> {
-        let gp = self.gp();
-        if gp.is_null() {
+        if self.gp().is_null() {
             return None;
         }
-        hek_str(unsafe { (*gp).gp_file_hek })
+        cstr_opt(unsafe { libperl_sys::GvFILE(self.as_ptr() as *const _) })
     }
 
-    /// Source line where the glob was first created (`GvLINE`
-    /// equivalent). `None` when the glob has no GP.
+    /// Source line where the glob was first created (`GvLINE`).
+    /// `None` when the glob has no GP.
     pub fn line(&self) -> Option<u32> {
-        let gp = self.gp();
-        if gp.is_null() {
+        if self.gp().is_null() {
             return None;
         }
-        Some(unsafe { (*gp).gp_line() as u32 })
+        Some(unsafe { libperl_sys::GvLINE(self.as_ptr() as *const _) })
     }
 }
 
