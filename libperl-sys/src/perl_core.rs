@@ -43,3 +43,36 @@ pub type Stack_off_t = I32;
 // >= 5.28 because older perls don't generate `S_SvREFCNT_dec` yet.
 #[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
 pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
+
+// Compat: on perl 5.28/5.30 the current libperl-macrogen apidoc data
+// suppresses codegen for the Padname* / Padnamelist* accessors
+// ("[CODEGEN_SUPPRESSED] (apidoc patch)"), so they are missing from
+// macro_bindings.rs there. The underlying struct fields are identical
+// to 5.32+, so mirror the bodies macrogen emits on 5.32-5.44 until a
+// future unskip round lifts the suppression. `isize` matches the
+// generated `ssize_t` return type (that libc alias itself is absent
+// from the 5.28/5.30 bindgen output).
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub unsafe fn PadnamelistMAX(pnl: *const PADNAMELIST) -> isize {
+    unsafe { (*pnl).xpadnl_fill }
+}
+
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub unsafe fn PadnamelistARRAY(pnl: *const PADNAMELIST) -> *mut *mut PADNAME {
+    unsafe { (*pnl).xpadnl_alloc }
+}
+
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub unsafe fn PadnamePV(pn: *mut PADNAME) -> *mut ::std::os::raw::c_char {
+    unsafe { (*pn).xpadn_pv }
+}
+
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub unsafe fn PadnameLEN(pn: *mut PADNAME) -> STRLEN {
+    unsafe { (*pn).xpadn_len as STRLEN }
+}
+
+#[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+pub unsafe fn PadnameTYPE(pn: *mut PADNAME) -> *mut HV {
+    unsafe { (*pn).xpadn_type_u.xpadn_typestash }
+}

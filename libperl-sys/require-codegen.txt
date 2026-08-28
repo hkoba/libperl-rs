@@ -17,3 +17,24 @@ PadlistMAX    # 同上
 # unresolved) ため require-codegen-threaded.txt 側に置く。
 # Perl_SvREFCNT_dec は 5.30 以前に存在しない名前 (5.31.x の S_→Perl_ 改名で
 # 登場) なので require 不可 — src/perl_core.rs の compat alias で提供する。
+
+# --- Step 2 introspection 層 (docs/plan/README.md §4 Step 2) が消費する分。
+# multi-perl 成果物で 5.28〜5.44 × threaded/non-threaded の生成を確認済み。
+OpSIBLING
+CopFILE
+PadlistNAMES
+PadMAX
+PadARRAY
+isGV_with_GP
+GvNAME_HEK
+GvSTASH
+HEK_KEY
+HvNAME
+CvGV
+# Padnamelist{MAX,ARRAY} / Padname{PV,LEN,TYPE} は 5.28/5.30 で
+# CODEGEN_SUPPRESSED (apidoc patch) のため require 不可 —
+# src/perl_core.rs の compat 実装で 5.28/5.30 に提供する (次の
+# macrogen unskip round の解除候補)。
+# GvGP / GvLINE / GvFILE は 5.44 で CASCADE_UNAVAILABLE (GvGP 依存)
+# のため require 不可 — libperl-rs 側 (src/gv.rs) が gp 構造体を
+# 直接読む (perl-LibPerlRs-PartialEval raw.rs の gv_cv と同手法)。
