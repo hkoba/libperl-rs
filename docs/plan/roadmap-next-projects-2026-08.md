@@ -188,9 +188,17 @@ Inspect の eval カバレッジ(「アプリが eval したコードも inspect
   Op/Cop/Gv/PadName newtypes、SvKind、StashWalker、Cv/Hv/Perl 拡張、
   north-star 例 (walker_stash / walker_subs)、統合テスト。
   - 5.28/5.30 の Padname* 欠落は libperl-sys/src/perl_core.rs の compat 実装で
-    吸収 (macrogen 次期 unskip round の解除候補)。GvGP 系は 5.44 で生成不能のため
-    Gv は gp 構造体直読み。CvGV は **5.32 だけ引数型が `*const CV`**
-    (他は `*const SV`) — 推論キャストで両対応 (commit 2e02518)。
+    吸収 (macrogen 次期 unskip round の解除候補。apidoc v1.14 での抑制であることを
+    再確認済み)。CvGV は **5.32 だけ引数型が `*const CV`** (他は `*const SV`) —
+    推論キャストで両対応 (commit 2e02518)。
+  - **訂正 (2026-08-28)**: 当初「GvGP 系は 5.44 で CASCADE_UNAVAILABLE」と判断して
+    Gv を gp 構造体直読みで実装したが、これは **8/22 起源の古い実験状態の
+    multi-perl 成果物 (stale apidoc-cache) の見誤り**で、v0.1.11 では
+    GvGP/GvCV/GvFILE/GvLINE が 5.28〜5.44 全 leg × 両モードで生成される
+    (シグネチャも一様、GvCV のみ `*const GV` 引数)。前ラウンドで文書化した
+    「stale apidoc-cache の罠」の再発 — **leg 成果物のシンボル有無を設計根拠に
+    する前に、生成日時と apidoc 世代を確認し、疑わしければ再生成すること**。
+    Gv は生成 API 消費 + require-codegen 追加に切り替え済み。
   - 検証: ローカル 5.42 `-D warnings` 全 green / multi-perl 3 leg
     (5.28-threaded, 5.28-non-threaded, 5.44-threaded) smoke=OK downstream=OK /
     **CI 18 セル全 green** (run 33144988969)。
