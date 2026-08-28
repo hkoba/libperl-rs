@@ -209,8 +209,16 @@ Inspect の eval カバレッジ(「アプリが eval したコードも inspect
   `OpTree::Analyzer` → **`LibPerlRs::Inspect`** へ機械的改名
   (crates も inspect-{core,capture,xs} へ)。9 ファイル 72 テスト全 PASS。
   記録: 同リポジトリ `docs/rename-libperlrs-inspect-2026-08.md`。
-- 残: PR #24 の merge (green 確認済み) と libperl-rs 0.5 リリース判断、
-  Inspect 側 branch の main への merge、その後 §3.2 の capture 薄化 + inspect-cli。
+- **続報 (2026-08-28 同日)**: PR #24 は merge され、Step 2 層は
+  **libperl-rs 0.4.4** として crates.io リリース済み (0.5 でなく patch 版)。
+  Inspect 側も同日完了: capture 薄化 (golden 72 テスト同一)、
+  crates.io 0.4.4 への切替、**inspect-cli (`perl-inspect`) の MVP**
+  (compile-not-run / 由来タグ / argspec / schema_version 1 JSON)、
+  **M2 = use 抽出** (`uses` / `opaque_begins`、BEGIN 帰属 +
+  begin_is_use。sitecustomize/-M 由来の line-0 注入は除外)。
+  §3.2 は M2 まで消化 — 残は CLI の Makefile.PL staging 統合、
+  PAD_BASE_SV upstream、Inspect branch の merge/公開 (ユーザー判断)。
+  次の製品段は §3.3 EvalCapture または §3.4 `--serve`。
 
 ## 5. 採用戦略ノート
 
