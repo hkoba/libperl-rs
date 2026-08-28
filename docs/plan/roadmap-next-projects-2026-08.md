@@ -182,6 +182,28 @@ Inspect の eval カバレッジ(「アプリが eval したコードも inspect
 | 採用指針(use 抽出単体公開) | PartialEval `docs/API-REVIEW-2026-08.md` §5-8 |
 | proto0 の walker/pad/sv 例 | libperl-proto0 `examples/102〜110`, `examples/eg/*` |
 
+## 4.5 実施状況 (2026-08-28 追記)
+
+- **Foundation track (§3.1) 実装完了** — branch `step2-introspection` = **PR #24**:
+  Op/Cop/Gv/PadName newtypes、SvKind、StashWalker、Cv/Hv/Perl 拡張、
+  north-star 例 (walker_stash / walker_subs)、統合テスト。
+  - 5.28/5.30 の Padname* 欠落は libperl-sys/src/perl_core.rs の compat 実装で
+    吸収 (macrogen 次期 unskip round の解除候補)。GvGP 系は 5.44 で生成不能のため
+    Gv は gp 構造体直読み。CvGV は **5.32 だけ引数型が `*const CV`**
+    (他は `*const SV`) — 推論キャストで両対応 (commit 2e02518)。
+  - 検証: ローカル 5.42 `-D warnings` 全 green / multi-perl 3 leg
+    (5.28-threaded, 5.28-non-threaded, 5.44-threaded) smoke=OK downstream=OK /
+    **CI 18 セル全 green** (run 33144988969)。
+  - `Perl::parse_only` は新設せず: 現行 `Perl::parse` が compile-only であり、
+    新設の `Perl::run` との分離として明文化 (src/perl.rs doc)。
+- **Product track §3.2 第 1 歩 (改名) 完了** — perl-optree-analyzer リポジトリの
+  branch `libperlrs-inspect-rename` (commit 5ac1fb2) で
+  `OpTree::Analyzer` → **`LibPerlRs::Inspect`** へ機械的改名
+  (crates も inspect-{core,capture,xs} へ)。9 ファイル 72 テスト全 PASS。
+  記録: 同リポジトリ `docs/rename-libperlrs-inspect-2026-08.md`。
+- 残: PR #24 の merge (green 確認済み) と libperl-rs 0.5 リリース判断、
+  Inspect 側 branch の main への merge、その後 §3.2 の capture 薄化 + inspect-cli。
+
 ## 5. 採用戦略ノート
 
 - **use 抽出を看板に**(API-REVIEW §5-8 の既定路線): PartialEval 内での
