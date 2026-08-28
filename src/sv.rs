@@ -16,9 +16,9 @@
 
 use std::ptr::NonNull;
 
-use libperl_sys::{PerlInterpreter, SV};
+use libperl_sys::{AV, CV, HV, PerlInterpreter, SV, svtype};
 
-use crate::Perl;
+use crate::{Av, Cv, Gv, Hv, Perl};
 
 /// A non-null pointer to a Perl `SV`. Same ABI as `*mut SV` — `NonNull`
 /// is a `#[repr(transparent)]` wrapper that just encodes the
@@ -154,6 +154,36 @@ impl Sv {
         unsafe { ::core::slice::from_raw_parts(ptr as *const u8, len as usize) }
     }
 
+    /// Classify this SV as a [`SvKind`] — the rebuilt version of
+    /// proto0's `Sv` extraction enum (Step 2 in `docs/plan/README.md`).
+    /// Pure struct/flag reads via macrogen accessors; no magic is
+    /// triggered and no interpreter context is needed.
+    pub fn kind(&self) -> SvKind {
+        let sv = self.as_ptr();
+        unsafe {
+            // GP-carrying globs first: `SVt_PVLV` can be a glob too,
+            // so the flag test must precede the type match.
+            if libperl_sys::isGV_with_GP(sv) {
+                return SvKind::Glob(Gv::from_raw_unchecked(sv as *mut libperl_sys::GV));
+            }
+            match libperl_sys::SvTYPE(sv) {
+                svtype::SVt_PVAV => SvKind::Array(Av::from_raw_unchecked(sv as *mut AV)),
+                svtype::SVt_PVHV => SvKind::Hash(Hv::from_raw_unchecked(sv as *mut HV)),
+                svtype::SVt_PVCV => SvKind::Code(Cv::from_raw_unchecked(sv as *mut CV)),
+                svtype::SVt_REGEXP => SvKind::Regexp(*self),
+                t if (t as u32) < (svtype::SVt_PVAV as u32) => {
+                    if libperl_sys::SvROK(sv) != 0 {
+                        // A reference; the referent is never null.
+                        SvKind::Ref(Sv::from_raw_unchecked(libperl_sys::SvRV(sv)))
+                    } else {
+                        SvKind::Scalar(*self)
+                    }
+                }
+                t => SvKind::Other(t, *self),
+            }
+        }
+    }
+
     /// Allocate a fresh mortal SV holding `s` as a UTF-8 string.
     pub fn new_pv(perl: &Perl, s: &str) -> Sv {
         let bytes = s.as_bytes();
@@ -178,6 +208,44 @@ impl Sv {
 // `*mut SV` is not Send/Sync; the `NonNull` wrapper inherits this.
 // No `unsafe impl Send/Sync for Sv` here — interpreter affinity is
 // preserved.
+
+/// Classification of an SV, yielded by [`Sv::kind`]. Payloads are the
+/// matching newtype handles (same pointer, viewed through the right
+/// type) — non-owning, like the newtypes themselves.
+#[derive(Clone, Copy)]
+pub enum SvKind {
+    /// Plain scalar (IV / NV / PV / undef — anything below `SVt_PVAV`
+    /// that is not a reference).
+    Scalar(Sv),
+    /// A reference; the payload is the *referent* (call `kind()` on
+    /// it again to see what it points at).
+    Ref(Sv),
+    Array(Av),
+    Hash(Hv),
+    Code(Cv),
+    /// GP-carrying glob (symbol-table entry).
+    Glob(Gv),
+    Regexp(Sv),
+    /// Recognised but not further classified (`SVt_PVIO`, ...).
+    Other(svtype, Sv),
+}
+
+impl std::fmt::Debug for SvKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Pointers carry no printable identity; show the variant, and
+        // for `Other` the svtype.
+        match self {
+            SvKind::Scalar(_) => f.write_str("SvKind::Scalar"),
+            SvKind::Ref(_) => f.write_str("SvKind::Ref"),
+            SvKind::Array(_) => f.write_str("SvKind::Array"),
+            SvKind::Hash(_) => f.write_str("SvKind::Hash"),
+            SvKind::Code(_) => f.write_str("SvKind::Code"),
+            SvKind::Glob(_) => f.write_str("SvKind::Glob"),
+            SvKind::Regexp(_) => f.write_str("SvKind::Regexp"),
+            SvKind::Other(t, _) => write!(f, "SvKind::Other({t:?})"),
+        }
+    }
+}
 
 /// `SvREFCNT_inc(sv)` — bump the refcount of `sv` by one and return
 /// it (or just the null pointer on null input).

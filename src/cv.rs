@@ -21,7 +21,9 @@
 
 use std::ptr::NonNull;
 
-use libperl_sys::{CV, OP, PADLIST, SV, svtype};
+use libperl_sys::{CV, OP, OPclass, PADLIST, SV, svtype};
+
+use crate::{Cop, Gv, Op, PadNames, Perl};
 
 /// Non-null pointer to a Perl `CV`. Same ABI as `*mut CV`.
 #[derive(Clone, Copy)]
@@ -117,6 +119,73 @@ impl Cv {
                     .into_owned(),
             )
         }
+    }
+
+    /// [`Cv::root`] as an [`Op`] handle (`None` for XSUBs).
+    #[inline]
+    pub fn root_op(&self) -> Option<Op> {
+        Op::from_raw(self.root())
+    }
+
+    /// [`Cv::start`] as an [`Op`] handle (`None` for XSUBs).
+    #[inline]
+    pub fn start_op(&self) -> Option<Op> {
+        Op::from_raw(self.start())
+    }
+
+    /// The GV the sub was defined through (`CvGV`), if any. Gives
+    /// access to the sub's package-qualified name and the glob's
+    /// file / line.
+    #[inline]
+    pub fn gv(&self, perl: &Perl) -> Option<Gv> {
+        let gv = unsafe { crate::thx_call!(perl, CvGV, self.as_ptr() as *const SV) };
+        Gv::from_raw(gv)
+    }
+
+    /// The sub's `(qualified, unqualified)` name pair
+    /// (`("Foo::bar", "bar")`), resolved via [`Cv::gv`]. `None` for
+    /// nameless subs.
+    pub fn names(&self, perl: &Perl) -> Option<(String, String)> {
+        let gv = self.gv(perl)?;
+        let name = gv.name()?;
+        let full = match gv.stash_name() {
+            Some(pkg) => format!("{pkg}::{name}"),
+            None => name.clone(),
+        };
+        Some((full, name))
+    }
+
+    /// The first COP (`nextstate`) in the sub's OP tree, in tree
+    /// order — i.e. the sub's first statement, whose
+    /// [`line`](Cop::line) / [`file`](Cop::file) locate the sub body
+    /// in its source. `None` for XSUBs and bodiless subs.
+    ///
+    /// Walks tree order (preorder), not the `op_next` chain, so loop
+    /// back-edges cannot cycle the search.
+    pub fn first_cop(&self, perl: &Perl) -> Option<Cop> {
+        let mut stack: Vec<Op> = self.root_op().into_iter().collect();
+        while let Some(op) = stack.pop() {
+            if op.class(perl) == OPclass::OPclass_COP {
+                return op.as_cop(perl);
+            }
+            // Push the sibling below the first kid so the kid is
+            // taken first (preorder).
+            if let Some(sib) = op.sibling() {
+                stack.push(sib);
+            }
+            if let Some(kid) = op.first() {
+                stack.push(kid);
+            }
+        }
+        None
+    }
+
+    /// Iterate the sub's lexical-name slots (pad names), in pad-offset
+    /// order starting at offset 0. Empty for XSUBs. See
+    /// [`PadNames`](crate::PadNames).
+    #[inline]
+    pub fn pad_names(&self) -> PadNames {
+        PadNames::from_padlist(self.padlist())
     }
 
     /// The sub's prototype string (`CvPROTO`), if any. A CV stores

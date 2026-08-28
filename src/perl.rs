@@ -118,6 +118,46 @@ impl Perl {
             )
         }
     }
+
+    /// `perl_run` — execute the parsed program's main body.
+    ///
+    /// Note the split this makes explicit: [`Perl::parse`] only
+    /// *compiles* the program (`BEGIN` / `use` run, the main body
+    /// does not), which is exactly the "parse-only" mode an
+    /// introspection client wants — after `parse`, the whole
+    /// symbol-table / OP-tree surface below is available without
+    /// having executed the program. Call `run` only when execution
+    /// is actually desired.
+    pub fn run(&mut self) -> i32 {
+        unsafe { libperl_sys::perl_run(self.as_ptr()) }
+    }
+
+    /// `gv_stashpv` — look up the stash (symbol table hash) of
+    /// package `pack`, e.g. `"main"` or `"Foo::Bar"`. `None` when the
+    /// package does not exist (with `flags = 0`; pass `GV_ADD`-style
+    /// flags to autovivify).
+    pub fn gv_stashpv(&self, pack: &str, flags: i32) -> Option<crate::Hv> {
+        let name = CString::new(pack).ok()?;
+        let hv = unsafe {
+            crate::thx_call!(self, Perl_gv_stashpv, name.as_ptr(), flags as _)
+        };
+        if hv.is_null() {
+            None
+        } else {
+            Some(unsafe { crate::Hv::from_raw_unchecked(hv) })
+        }
+    }
+
+    /// `get_sv` — look up a package scalar by name (`"main::0"`,
+    /// `"Foo::bar"`; unqualified names resolve in `main`). `None`
+    /// when it does not exist (with `flags = 0`).
+    pub fn get_sv(&self, name: &str, flags: i32) -> Option<crate::Sv> {
+        let name = CString::new(name).ok()?;
+        let sv = unsafe {
+            crate::thx_call!(self, Perl_get_sv, name.as_ptr(), flags as _)
+        };
+        crate::Sv::from_raw(sv)
+    }
 }
 
 impl Default for Perl {
