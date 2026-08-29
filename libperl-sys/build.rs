@@ -482,6 +482,9 @@ fn cc_system_includes() -> Vec<PathBuf> {
     let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
     let output = match Command::new(&cc)
         .args(["-E", "-Wp,-v", "-xc", "/dev/null"])
+        // gcc の診断はロケールで翻訳される ("search starts here" が日本語等に
+        // なる) と下のマーカー照合が空振りするため、C ロケールに固定する
+        .env("LC_ALL", "C")
         .output()
     {
         Ok(o) => o,
