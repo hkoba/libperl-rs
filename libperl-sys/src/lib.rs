@@ -34,6 +34,11 @@
 //!   wrappers (from libperl-macrogen) — these unify the threaded vs
 //!   non-threaded calling conventions so the same source builds
 //!   against both `MULTIPLICITY` modes,
+//! - `PL_xxx_ptr!()` pointer accessors (read *and write* the
+//!   interpreter variables through one primitive) and the [`thx`]
+//!   calling-convention shim module — together they let downstream
+//!   crates touch raw interpreter state without `cfg`-forking on the
+//!   threading mode (GH-20),
 //! - opcode → name lookup table ([`conv_opcode`]) and per-function
 //!   signature dictionary ([`sigdb`]) for downstream codegen.
 //!
@@ -61,6 +66,40 @@ pub use perl_core::*;
 pub mod conv_opcode;
 
 pub mod sigdb;
+
+/// Threaded-style calling-convention shims (GH-20).
+///
+/// Every function here takes `my_perl: *mut PerlInterpreter` first.
+/// The argument is forwarded when the wrapped function wants a context
+/// and silently dropped when it does not — which covers both
+/// non-threaded builds (no function takes a context) and the handful of
+/// context-free functions on threaded builds. Downstream code can
+/// therefore call `sys::thx::Perl_foo(my_perl, ...)` uniformly and
+/// compile against both `MULTIPLICITY` modes unchanged.
+///
+/// Wraps both the bindgen externs (bindings.rs) and the
+/// libperl-macrogen-generated inline functions (macro_bindings.rs) —
+/// the latter also change signature with the threading mode. C variadic
+/// functions (e.g. `Perl_croak`) cannot be wrapped in stable Rust and
+/// are omitted; call them through the crate root with an explicit
+/// `#[cfg(perl_useithreads)]` branch if you need them.
+#[allow(
+    non_snake_case,
+    unused_imports,
+    unused_unsafe,
+    clippy::missing_safety_doc,
+    clippy::too_many_arguments
+)]
+pub mod thx {
+    include!(concat!(env!("OUT_DIR"), "/thx_bindings.rs"));
+
+    // perl_core.rs と同じ 5.28/5.30 互換 (5.31 で S_SvREFCNT_dec →
+    // Perl_SvREFCNT_dec 改名): shim は S_SvREFCNT_dec としてしか生成
+    // されないので、thx 名前空間にも Perl_ 名の alias を張る。shim が
+    // 既に呼び出し規約を正規化済みのため alias だけで足りる。
+    #[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+    pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
+}
 
 /// Perl version this binding was generated against (e.g. `"5.38.4"`).
 pub const PERL_VERSION:  &str = env!("LIBPERL_SYS_PERL_VERSION");

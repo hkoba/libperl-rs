@@ -22,6 +22,10 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 include!(concat!(env!("OUT_DIR"), "/macro_bindings.rs"));
 
+// GH-20: PERLVAR 由来の読み書き両用アクセサ `PL_xxx_ptr!` (build.rs 生成)。
+// read 専用の `PL_xxx!` (macro_bindings.rs) と同じ PERLVAR 観測が情報源。
+include!(concat!(env!("OUT_DIR"), "/perlvar_ptr_bindings.rs"));
+
 #[cfg(perlapi_ver40)]
 pub type perl_stack_size_t = isize;
 
