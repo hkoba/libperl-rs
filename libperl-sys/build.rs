@@ -36,6 +36,27 @@ fn look_updated_against<'a>(checked: &Path, against: &[&'a Path]) -> Option<&'a 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
+    // GH-21 で判明した第 2 の原因: libperl-macrogen (build.rs 内で
+    // インプロセス実行) は Config.pm を PATH 上の `perl` から読むため、
+    // PERL=... で選んだ perl と食い違うと bindgen 出力 (PERL 準拠) と
+    // macrogen 出力 (PATH 準拠) が別世代の混成になる。選択した perl の
+    // bin を自プロセスの PATH 先頭に足し、子プロセスの `perl` 解決を
+    // PERL と一致させる。
+    if let Some(perl_path) = env::var("PERL").ok().filter(|s| !s.is_empty()) {
+        let abs = std::fs::canonicalize(&perl_path)
+            .unwrap_or_else(|_| PathBuf::from(&perl_path));
+        if let Some(bin_dir) = abs.parent().filter(|d| d.as_os_str() != "") {
+            let path_var = env::var("PATH").unwrap_or_default();
+            // SAFETY: build script 冒頭・単一スレッドの時点で呼ぶ
+            unsafe {
+                env::set_var(
+                    "PATH",
+                    format!("{}:{}", bin_dir.display(), path_var),
+                );
+            }
+        }
+    }
+
     let perl = PerlConfig::default();
     perl.emit_cargo_ldopts();
 
@@ -130,6 +151,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => true,
     };
 
+    // GH-21: mtime 比較も macrogen stamp も「どの perl から生成したか」を
+    // 見ていないため、perl を切り替えて再実行すると (Makefile.PL の
+    // PERL=... 再指定など)、build.rs 自体は再走するのに bindings.rs /
+    // macro_bindings.rs が前の perl のまま残る — 前の版の bindings が
+    // 新しい版の cfg(perlapi_ver*) でコンパイルされる。生成元 perl の
+    // 同一性をスタンプに書き、現在の perl と食い違ったら再生成を強制する。
+    let perl_identity = format!(
+        "{} {} ithreads={} shrplib={} archlib={}",
+        perl_version,
+        perl_archname,
+        perl_use_ithreads,
+        perl.dict.get("useshrplib").cloned().unwrap_or_default(),
+        archlib,
+    );
+    let perl_stamp = cargo_outdir().join("perl-identity.txt");
+    let perl_switched = match std::fs::read_to_string(&perl_stamp) {
+        Ok(s) => s.trim() != perl_identity,
+        Err(_) => true,
+    };
+
     let mut freshness_deps: Vec<&Path> = vec![&src_path, &build_rs_path];
     if skip_list.exists() {
         freshness_deps.push(&skip_list);
@@ -161,6 +202,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !force_rebuild {
             println!("# will generate new {}", out_file.display());
         }
+        true
+    }
+    else if perl_switched {
+        println!("# generating perl changed (stamp {} != {}), regenerating"
+                 , std::fs::read_to_string(&perl_stamp)
+                     .map(|s| s.trim().to_string())
+                     .unwrap_or_else(|_| "<missing>".to_string())
+                 , perl_identity);
         true
     }
     else if macrogen_updated {
@@ -272,6 +321,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         std::fs::write(&macrogen_stamp,
                        libperl_macrogen::apidoc_data::APIDOC_DATA_VERSION)?;
+        std::fs::write(&perl_stamp, &perl_identity)?;
     }
 
     // Generate sigdb.rs from bindings.rs
