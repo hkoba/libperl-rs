@@ -93,6 +93,28 @@ inline 関数を Rust の `unsafe fn` に **自動変換** できるようにな
   `$crate::PL_<name>` をそのまま参照。**ターゲット 1 つに対して 1 形だけ**
   emit する (cfg 無し、計画 §3.2)。
 
+#### 3.3.0 読み書き両用の `PL_xxx_ptr!` と `thx` shim (GH-20, 2026-08 追加)
+
+read 専用の `PL_xxx!` だけでは下流 (partial-eval engine) の
+stack/markstack 操作や `PL_savebegin` トグルのような**書き込み**が
+吸収できず、`(*my_perl).Ixxx` 直書きが non-threaded ビルドを壊していた
+(GH-20)。そこで 2 つを libperl-sys build.rs が追加生成する:
+
+- **`PL_xxx_ptr!(my_perl)`** — `*mut T` を返すポインタアクセサ。
+  情報源は read マクロと同じ PERLVAR 観測 (`GeneratedPipeline::result()`
+  の `perlvar_dict` を build.rs が受け取って emit)。読みは
+  `*PL_stack_sp_ptr!(p)`、書きは `*PL_stack_sp_ptr!(p) = v`。
+  展開形の規則は read マクロと同一 (I×threaded は struct field、
+  それ以外は global、cfg 無し 1 形)。PERLVARIC (const) と、名前が
+  他の perlvar と衝突する `PL_markstack_ptr!` (実在 perlvar
+  `markstack_ptr` の read マクロ名) は生成しない
+- **`sys::thx::Perl_foo(my_perl, ...)`** — threaded 風呼び出し規約の
+  shim モジュール。bindgen extern + macrogen 生成インライン関数の
+  全てを「先頭に my_perl を受ける」形で包み直す (元関数の先頭引数が
+  `*mut PerlInterpreter` なら転送、なければ捨てる)。C variadic は
+  包めないため省く。5.28/5.30 の `Perl_SvREFCNT_dec` は
+  perl_core.rs と同じ alias で補う
+
 #### 3.3.1 なぜ no-arg 形ではなく `PL_main_root!(my_perl)` 形か
 
 当初は `PL_main_root!()` (no-arg、`my_perl` を呼び出し位置から自由捕捉)
