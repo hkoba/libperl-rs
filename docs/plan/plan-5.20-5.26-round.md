@@ -130,6 +130,11 @@ unskip-refcnt-padlist-5.28-5.30.md と同型の
    `all(perlapi_ver28, not(perlapi_ver32))` 族 —
    `S_SvREFCNT_dec as Perl_SvREFCNT_dec` alias と
    `Padnamelist{MAX,ARRAY}` / `Padname{PV,LEN,TYPE}` の手書き compat。
+   **alias は 2 箇所ある**ことに注意: perl_core.rs に加えて
+   lib.rs の `thx` モジュール内にも同型 alias
+   (`pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;`) があり、
+   下限を広げるときは両方揃えて変更する (下流 engine は GH-20 移行後
+   `sys::thx::Perl_SvREFCNT_dec` を呼ぶので thx 側が実際の消費経路)。
    ≤5.26 で S_SvREFCNT_dec / Padname* が生成されるかを multi-perl
    成果物で確認し、生成されるなら下限を ver26/ver22/… へ広げる
    (生成されない版はこの compat 自体の対象拡大が要る)。5.26 の
