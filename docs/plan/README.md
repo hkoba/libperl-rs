@@ -645,6 +645,12 @@ xs_boot! {                           // boot_Mytest を生成
 }
 ```
 
+1 つの .so が複数の Perl 名前空間に XSUB を登録する場合は、`package` /
+`subs` の対を繰り返し、boot 関数名を `module` で明示する
+(.xs の `MODULE = ... PACKAGE = ...` 相当)。`module` 省略時は最初の
+`package` なので上記の単一形はそのまま有効
+— `docs/plan/xs-boot-multi-package-2026-08.md`。
+
 #### 3.11.5 サポート型の最小セット (Step 3 の初版)
 
 `#[xs_sub]` が Rust 関数シグネチャから読み取って自動変換する型を、

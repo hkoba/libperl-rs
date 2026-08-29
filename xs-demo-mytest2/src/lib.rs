@@ -280,7 +280,33 @@ fn code_op_count(cv: Cv) -> IV {
     n
 }
 
+// ---- second Perl namespace, same shared library ------------------------
+//
+// XSLoader calls exactly one boot function per .so, but that boot function
+// may register into several packages — the `MODULE = ... PACKAGE = ...`
+// idiom of hand-written .xs. These two land in `Mytest2::Extra` while
+// everything above stays in `Mytest2`; see the `xs_boot!` block below and
+// t/10_multi_package.t.
+
+/// `Mytest2::Extra::twice($n)` — trivial IV round-trip, in the *second*
+/// namespace.
+#[xs_sub]
+fn twice(n: IV) -> IV {
+    n * 2
+}
+
+/// `Mytest2::Extra::tag($s)` — string round-trip, in the second namespace.
+#[xs_sub]
+fn tag(s: &str) -> String {
+    format!("extra:{s}")
+}
+
 xs_boot! {
+    // Boot symbol XSLoader::load('Mytest2') looks up. Optional here (it
+    // would default to the first package anyway), spelled out to exercise
+    // the explicit form.
+    module = "Mytest2";
+
     package = "Mytest2";
     subs = [foo, shout, byte_len, statfs, words, identity, maybe_sv,
             identity_sv, maybe_sv2,
@@ -289,4 +315,7 @@ xs_boot! {
             sum_iv, av_len_demo, record_keys,
             multi_statfs,
             code_file, code_is_xsub, code_proto, code_op_count];
+
+    package = "Mytest2::Extra";
+    subs = [twice, tag];
 }
