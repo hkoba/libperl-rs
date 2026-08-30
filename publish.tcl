@@ -137,11 +137,14 @@ STEP 1 "前提チェック (clean tree / master / patch 残骸 / macrogen pin)" 
     }
 }
 
-STEP 2 "ローカル検証 (bump 前に workspace build + test --examples)" {
+STEP 2 "ローカル検証 (bump 前に workspace build + test、CI 同等)" {
     set ambient [=RUN perl -MConfig -le {print "$Config{version} $Config{usethreads}"}]
     puts "# ambient perl: $ambient"
     RUN cargo build --workspace
-    RUN cargo test --workspace --examples
+    # rust.yml と同じ 2 段 (--examples を同時指定するとターゲットが
+    # examples だけに絞られて本体テストが走らないので分ける)
+    RUN cargo test --workspace
+    RUN cargo test --examples
 }
 
 STEP 3 "multi-perl docker 検証 (runtest-docker.zsh)" {
