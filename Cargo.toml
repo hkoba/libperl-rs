@@ -19,6 +19,7 @@ exclude = [
     "CLAUDE.md",
     "docs/",
     "podman-build.zsh",
+    "publish.tcl",
     "release.toml",
     "runtest-docker.zsh",
     ".claude/",

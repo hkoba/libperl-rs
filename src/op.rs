@@ -22,7 +22,11 @@
 use std::ffi::CStr;
 use std::ptr::NonNull;
 
-use libperl_sys::{OP, OPclass, OPf_KIDS, PL_op_name, opcode, unop};
+use libperl_sys::{OP, OPf_KIDS, PL_op_name, opcode, unop};
+
+// `OPclass` (and `Perl_op_class`) first appeared in perl 5.26.
+#[cfg(perlapi_ver26)]
+use libperl_sys::OPclass;
 
 use crate::{Cop, Perl};
 
@@ -143,16 +147,41 @@ impl Op {
 
     /// The op's class (`Perl_op_class`, the same classification `B`
     /// exposes as `B::class`).
+    ///
+    /// Only on perl 5.26+ — `OPclass` and `op_class()` were both born
+    /// there. Version-portable callers that only need COP detection
+    /// should use [`Op::as_cop`] instead, which works on every
+    /// supported perl.
+    #[cfg(perlapi_ver26)]
     #[inline]
     pub fn class(&self, perl: &Perl) -> OPclass {
         unsafe { crate::thx_call!(perl, Perl_op_class, self.0.as_ptr()) }
+    }
+
+    /// Whether this op is a COP (`nextstate` / `dbstate`), including
+    /// an optimized-away ex-COP (`OP_NULL` whose `op_targ` records the
+    /// original type — the same mapping `op_class` applies).
+    fn is_cop(&self, perl: &Perl) -> bool {
+        #[cfg(perlapi_ver26)]
+        {
+            self.class(perl) == OPclass::OPclass_COP
+        }
+        #[cfg(not(perlapi_ver26))]
+        {
+            let _ = perl;
+            let mut t = self.op_type_raw();
+            if t == opcode::OP_NULL as u32 {
+                t = unsafe { (*self.0.as_ptr()).op_targ } as u32;
+            }
+            t == opcode::OP_NEXTSTATE as u32 || t == opcode::OP_DBSTATE as u32
+        }
     }
 
     /// View this op as a [`Cop`] when it is one (`nextstate` /
     /// `dbstate`), giving access to its file / line.
     #[inline]
     pub fn as_cop(&self, perl: &Perl) -> Option<Cop> {
-        if self.class(perl) == OPclass::OPclass_COP {
+        if self.is_cop(perl) {
             Cop::from_raw(self.0.as_ptr() as *const libperl_sys::COP)
         } else {
             None

@@ -1,8 +1,13 @@
 # threaded (useithreads) ビルド限定の partial eval 必須 API (GH-16)。
 # build.rs が useithreads 検出時のみ with_require_codegen_list で適用する。
-# non-threaded perl では PAD_SET_CUR_NOSAVE が unresolved のため
-# PAD_SET_CUR は従来から不生成 (macrogen scripts/multi-perl-expect の
-# v5.28/v5.30.json threaded 節の must_generate_extra と対応)。
+#
+# 経緯 (2026-08-30 訂正): 「non-threaded では PAD_SET_CUR 不生成」は
+# macrogen の smoke ハーネスが threaded スナップショットの
+# samples/bindings.rs を使うことによる見かけ (PL_comppad グローバルが
+# 見えず連鎖不生成) で、本 crate の実 bindgen bindings では non-threaded
+# でも生成される (5.20〜5.30/5.42 の nt downstream 成果物で確認)。
+# ただし全 nt leg での確認が済むまでは従来どおり threaded 限定の
+# require に留める (main 側 require への昇格は別途)。
 #
 # 書式: 1 行 1 名前、# 以降はコメント (require-codegen.txt と同一書式)
 PAD_SET_CUR

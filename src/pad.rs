@@ -43,7 +43,15 @@ impl PadName {
         if pv.is_null() {
             return None;
         }
+        #[cfg(perlapi_ver22)]
         let len = unsafe { libperl_sys::PadnameLEN(self.as_ptr()) };
+        // 5.20 (PADNAME = SV 時代): 生成体 PadnameLEN は THX 付きで、
+        // Perl ハンドルを持たないここからは呼べない。pad.h 5.20 の定義
+        // `(pn == &PL_sv_undef ? 0 : SvCUR(pn))` の undef 分岐は直前の
+        // PV null チェック (undef は POKp でない) で除外済みなので、
+        // SvCUR 直読みで等価。
+        #[cfg(not(perlapi_ver22))]
+        let len = unsafe { libperl_sys::SvCUR(self.as_ptr() as *const libperl_sys::SV) };
         let bytes = unsafe { std::slice::from_raw_parts(pv as *const u8, len as usize) };
         Some(String::from_utf8_lossy(bytes).into_owned())
     }

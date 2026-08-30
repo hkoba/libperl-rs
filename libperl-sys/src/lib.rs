@@ -93,12 +93,31 @@ pub mod sigdb;
 pub mod thx {
     include!(concat!(env!("OUT_DIR"), "/thx_bindings.rs"));
 
-    // perl_core.rs と同じ 5.28/5.30 互換 (5.31 で S_SvREFCNT_dec →
+    // perl_core.rs と同じ <5.32 互換 (5.31 で S_SvREFCNT_dec →
     // Perl_SvREFCNT_dec 改名): shim は S_SvREFCNT_dec としてしか生成
     // されないので、thx 名前空間にも Perl_ 名の alias を張る。shim が
     // 既に呼び出し規約を正規化済みのため alias だけで足りる。
-    #[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+    // 5.20〜5.26 でも S_SvREFCNT_dec が生成されることは macrogen 0.1.12
+    // (apidoc data 1.15) の multi-perl 成果物で確認済み。
+    #[cfg(not(perlapi_ver32))]
     pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
+
+    // <5.26 互換: newAV / newHV / hv_store の関数形 (`Perl_` 名の
+    // extern) は perl 5.26 で生まれた。5.24 以前はマクロのみだが、
+    // macrogen がそのマクロを同シグネチャの inline fn として生成する
+    // (5.20〜5.24 x 両モードの multi-perl 成果物で確認済み) ので、
+    // その thx shim を `Perl_` 名でも使えるようにする。
+    #[cfg(not(perlapi_ver26))]
+    pub use self::newAV as Perl_newAV;
+    #[cfg(not(perlapi_ver26))]
+    pub use self::newHV as Perl_newHV;
+    #[cfg(not(perlapi_ver26))]
+    pub use self::hv_store as Perl_hv_store;
+    // `Perl_sv_2iv` の extern も 5.26 生まれ (それ以前は sv_2iv_flags
+    // のみ)。マクロ生成体 sv_2iv (= sv_2iv_flags(sv, SV_GMAGIC)) の
+    // shim を同名で使えるようにする。
+    #[cfg(not(perlapi_ver26))]
+    pub use self::sv_2iv as Perl_sv_2iv;
 }
 
 /// Perl version this binding was generated against (e.g. `"5.38.4"`).

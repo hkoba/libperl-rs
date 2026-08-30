@@ -19,7 +19,10 @@ impl Av {
     #[inline]
     pub fn new(perl: &Perl) -> Av {
         unsafe {
-            let av = crate::thx_call!(perl, Perl_newAV,);
+            // `sys::thx` normalizes the calling convention per function:
+            // on perl < 5.26 no `Perl_newAV` extern exists and the thx
+            // module aliases the macro-generated `newAV` shim instead.
+            let av = libperl_sys::thx::Perl_newAV(perl.as_ptr());
             // `AV` is layout-compatible with `SV` (it starts with the
             // SV header) — `sv_2mortal` accepts a `*mut SV` of the AV.
             crate::thx_call!(perl, Perl_sv_2mortal, av as *mut SV);

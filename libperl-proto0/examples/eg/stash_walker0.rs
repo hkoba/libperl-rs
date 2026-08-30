@@ -1,3 +1,7 @@
+// 本体がすべて ver26 ゲートなので、それ未満では import 全部が余る
+// (CI は -D warnings)。op1.rs と同様に許容 (プロトタイプ例)。
+#![allow(unused_imports)]
+
 use libperl_proto0::Perl;
 use super::*;
 use super::{sv0::*,gv0::*};

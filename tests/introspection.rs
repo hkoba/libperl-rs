@@ -79,8 +79,17 @@ fn introspection_walk() {
     assert_eq!(cop.file().as_deref(), Some("-e"));
 
     // GV location: hello's glob (vivified by `our @hello`, see the
-    // SCRIPT note) reports the defining sub's position, line 7.
+    // SCRIPT note) reports the defining sub's position, line 7 — except
+    // on 5.22-5.26, where the sub-ref-in-stash optimisation exists but
+    // the upgrade to a real glob still stamps the GV with the line of
+    // the vivifying `our @hello` (line 8); 5.28 changed the upgrade to
+    // carry over the defining sub's position. 5.20 predates the
+    // optimisation entirely, so `sub hello` creates the glob at line 7
+    // directly. (Measured on the multi-perl 5.20-5.26 legs, 2026-08.)
     assert_eq!(hello.gv_file.as_deref(), Some("-e"));
+    #[cfg(all(perlapi_ver22, not(perlapi_ver28)))]
+    assert_eq!(hello.gv_line, Some(8));
+    #[cfg(any(not(perlapi_ver22), perlapi_ver28))]
     assert_eq!(hello.gv_line, Some(7));
 
     // ─── pad names ──────────────────────────────────────────────────

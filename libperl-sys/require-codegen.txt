@@ -11,16 +11,17 @@ CvSTART
 CvPADLIST
 CvISXSUB
 CopLINE
-PadlistARRAY  # 5.28/5.30 の auto skip は macrogen apidoc data 1.14 で解除 (5.26 以前は未解除 = 次段)
+PadlistARRAY  # 5.28/5.30 の auto skip は macrogen apidoc data 1.14、5.26 は 1.15 で解除 (5.20〜5.24 は元々生成可)
 PadlistMAX    # 同上
-# PAD_SET_CUR は non-threaded perl では生成されない (PAD_SET_CUR_NOSAVE が
-# unresolved) ため require-codegen-threaded.txt 側に置く。
+# PAD_SET_CUR は require-codegen-threaded.txt 側に置く (経緯はそちらのコメント)。
 # Perl_SvREFCNT_dec は 5.30 以前に存在しない名前 (5.31.x の S_→Perl_ 改名で
 # 登場) なので require 不可 — src/perl_core.rs の compat alias で提供する。
+# OpSIBLING は 5.21.2 新設のため require-codegen-since22.txt 側に置く
+# (5.20 は src/perl_core.rs の compat shim で提供)。
 
 # --- Step 2 introspection 層 (docs/plan/README.md §4 Step 2) が消費する分。
-# multi-perl 成果物で 5.28〜5.44 × threaded/non-threaded の生成を確認済み。
-OpSIBLING
+# multi-perl 成果物で 5.20〜5.44 × threaded/non-threaded の生成を確認済み
+# (5.20〜5.26 は macrogen 0.1.12 / apidoc data 1.15 のラウンドで追認)。
 CopFILE
 PadlistNAMES
 PadMAX
@@ -35,10 +36,16 @@ GvGP
 GvCV
 GvFILE
 GvLINE
-# Padnamelist{MAX,ARRAY} / Padname{PV,LEN,TYPE} は 5.28/5.30 で
-# CODEGEN_SUPPRESSED (apidoc patch) のため require 不可 —
-# src/perl_core.rs の compat 実装で 5.28/5.30 に提供する (次の
-# macrogen unskip round の解除候補)。
+# Padnamelist{MAX,ARRAY} / Padname{PV,LEN,TYPE} は 5.28/5.30 の
+# CODEGEN_SUPPRESSED が macrogen apidoc data 1.15 で解除され、
+# 5.20〜5.44 × 両モードの全 leg で native 生成を確認済み。
+# perl_core.rs の手書き compat (5.28..5.32 用ミラー) は native 生成と
+# 衝突する (E0428) ため削除し、こちらの require で再退行を防ぐ。
+PadnamelistMAX
+PadnamelistARRAY
+PadnamePV
+PadnameLEN
+PadnameTYPE
 # 注: GvGP 系は当初「5.44 で CASCADE_UNAVAILABLE」と誤認していたが、
 # これは古い実験状態の multi-perl 成果物 (stale apidoc-cache) の
 # 見誤りで、v0.1.11 (apidoc data 1.14) では 5.28〜5.44 の全 leg ×

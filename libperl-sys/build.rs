@@ -138,6 +138,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", threaded_require_list.display());
     }
 
+    // perl >= 5.22 限定の必須 API (OpSIBLING は 5.21.2 新設。5.20 は
+    // src/perl_core.rs の compat shim で提供するため require しない)。
+    let since22_require_list = cargo_topdir_file("require-codegen-since22.txt");
+    let use_since22_require = perl_minor >= 22 && since22_require_list.exists();
+    if use_since22_require {
+        println!("cargo:rerun-if-changed={}", since22_require_list.display());
+    }
+
     let out_file = cargo_outdir().join("bindings.rs");
 
     // mtime 比較は wrapper.h / build.rs / skip リストの変化しか見ないため、
@@ -186,6 +194,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if use_threaded_require {
         freshness_deps.push(&threaded_require_list);
+    }
+    if use_since22_require {
+        freshness_deps.push(&since22_require_list);
     }
 
     // docs.rs's build sandbox sometimes presents an OUT_DIR with a
@@ -309,6 +320,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if use_threaded_require {
             builder = builder.with_require_codegen_list(&threaded_require_list);
+        }
+        if use_since22_require {
+            builder = builder.with_require_codegen_list(&since22_require_list);
         }
 
         for p in cc_system_includes() {
