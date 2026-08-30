@@ -1,3 +1,7 @@
+// ver26 未満では my_test のフォールバック側が選ばれ import が余る
+// (CI は -D warnings)。プロトタイプ例なので許容。
+#![allow(unused_imports)]
+
 use std::env;
 
 use libperl_sys::op;

@@ -1,4 +1,7 @@
 #![allow(non_snake_case)]
+// 5.20 では ver22 ゲートの利用側が落ちて hv0 等の import が余る
+// (CI は -D warnings)。op1.rs と同様に許容 (プロトタイプ例)。
+#![allow(unused_imports)]
 
 #[cfg(perlapi_ver22)]
 use std::ffi::CStr;

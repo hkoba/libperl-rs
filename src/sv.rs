@@ -292,6 +292,7 @@ pub fn sv_undef_ptr(_my_perl: *mut PerlInterpreter) -> *mut SV {
 pub fn sv_undef_ptr(_my_perl: *mut PerlInterpreter) -> *mut SV {
     // Before the 5.28 immortals-array rework, non-threaded
     // `PL_sv_undef` is a plain global `SV`, emitted by bindgen as a
-    // static of its own.
-    unsafe { &raw mut libperl_sys::PL_sv_undef as *mut SV }
+    // static of its own. Taking a `&raw mut` of a `static mut` needs
+    // no unsafe block (unlike the array indexing above).
+    &raw mut libperl_sys::PL_sv_undef as *mut SV
 }

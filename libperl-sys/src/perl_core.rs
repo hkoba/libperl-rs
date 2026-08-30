@@ -19,6 +19,10 @@
 // 3 件出す。下流が -D warnings でビルドしても生成コード起因で落ちない
 // よう、他の生成コード用 allow と同列で許容しておく。
 #![allow(unused_parens)]
+// 5.24 の生成体 (CvDEPTH デクリメント族の
+// `{ *S_CvDEPTHp(cv) -= 1; *S_CvDEPTHp(cv) }` 文) が unused_must_use を
+// 出す (CI は RUSTFLAGS=-D warnings で error 化する)。同上の理由で許容。
+#![allow(unused_must_use)]
 #![allow(unused_unsafe)]
 #![allow(unused_variables)]
 

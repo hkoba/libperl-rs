@@ -1,4 +1,7 @@
 #![allow(non_snake_case)]
+// 版 cfg で利用側 (op_extract 等) が落ちると import が余る。
+// CI は -D warnings なので op1.rs と同様に許容 (プロトタイプ例)。
+#![allow(unused_imports)]
 
 #[cfg(perlapi_ver26)]
 use std::convert::TryFrom;
