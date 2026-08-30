@@ -1,0 +1,6 @@
+# perl >= 5.22 でのみ require する必須 API (GH-16)。
+# build.rs が perl_minor >= 22 のときだけ with_require_codegen_list で適用する
+# (use_legacy_skip と同じ perl_minor 分岐、threaded 分割の前例に揃えた構造)。
+#
+# 書式: 1 行 1 名前、# 以降はコメント (require-codegen.txt と同一書式)
+OpSIBLING  # 5.21.2 新設。5.20 には macro 自体が無く、src/perl_core.rs の compat shim (op_sibling 直読み) で提供する

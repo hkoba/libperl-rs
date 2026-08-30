@@ -93,11 +93,13 @@ pub mod sigdb;
 pub mod thx {
     include!(concat!(env!("OUT_DIR"), "/thx_bindings.rs"));
 
-    // perl_core.rs と同じ 5.28/5.30 互換 (5.31 で S_SvREFCNT_dec →
+    // perl_core.rs と同じ <5.32 互換 (5.31 で S_SvREFCNT_dec →
     // Perl_SvREFCNT_dec 改名): shim は S_SvREFCNT_dec としてしか生成
     // されないので、thx 名前空間にも Perl_ 名の alias を張る。shim が
     // 既に呼び出し規約を正規化済みのため alias だけで足りる。
-    #[cfg(all(perlapi_ver28, not(perlapi_ver32)))]
+    // 5.20〜5.26 でも S_SvREFCNT_dec が生成されることは macrogen 0.1.12
+    // (apidoc data 1.15) の multi-perl 成果物で確認済み。
+    #[cfg(not(perlapi_ver32))]
     pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
 }
 

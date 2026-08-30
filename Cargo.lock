@@ -627,9 +627,9 @@ dependencies = [
 
 [[package]]
 name = "libperl-macrogen"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c94f3151a8697ef9f8fd7dfa2635edb8cee6a72cec1ec382c1134f19fd682c12"
+checksum = "78ef608813e54e7e24871d790497de4c7e4783d355274740e79ff1c44f173b8e"
 dependencies = [
  "clap",
  "flate2",
