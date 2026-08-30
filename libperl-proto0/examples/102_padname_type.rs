@@ -1,13 +1,21 @@
+#[cfg(perlapi_ver22)]
 use std::env;
 
 // cargo run --example 102_padname_type -- -le 'my main $x; my $y'
 
+#[cfg(perlapi_ver22)]
 use libperl_proto0::Perl;
 
 mod eg;
 
 fn main() {
     my_test();
+}
+
+#[cfg(not(perlapi_ver22))]
+fn my_test() {
+    // padname API (struct padname / padnamelist) は perl 5.22 生まれ
+    println!("SKIP: this example requires perl >= 5.22");
 }
 
 #[cfg(perlapi_ver22)]

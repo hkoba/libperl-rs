@@ -3,7 +3,8 @@
 作成: 2026-08-29 (perl-LibPerlRs-PartialEval セッションからの依頼指示書)。
 **進捗 (2026-08-30)**: §0'' に中間引継 — macrogen 0.1.12 リリース済み、
 §2 の libperl-sys 層は branch `round-5.20-5.26` で実装・検証済み。
-残り = テスト期待値の版分岐 (5.26) と **5.20 の上位 crate 移植** (§0''-3)。
+**§0''-3 の残作業も同日後半に完了 — §6「実施結果」参照** (上位 crate の
+5.26 境界吸収 + 5.20 対応 + テスト版分岐 + CI matrix 拡張)。
 
 ## 0''. 中間引継 (2026-08-30、macrogen 側セッションより)
 
@@ -273,3 +274,81 @@ unskip-refcnt-padlist-5.28-5.30.md と同型の
   (unskip-refcnt §0'-2 の判断を維持。compat は libperl-rs 側 shim で)。
 - ≤5.18 は対象外。docs.rs / crates.io publish はこのラウンドの必須では
   ない (下流は path 依存 + sibling checkout)。
+
+## 6. 実施結果 (2026-08-30、§0''-3 の残作業ぶん)
+
+### 6-1. 判明した版境界の訂正 (§0''-3 の記述より広かった)
+
+multi-perl 実走 (5.20〜5.26 threaded の bindings/macro_bindings 比較) で
+確定した事実。**「5.22 生まれ」と見立てていたものはすべて 5.26 生まれ**:
+
+- `OPclass` enum / `Perl_op_class` — 5.26 生まれ。5.22/5.24 にも無い
+- `Perl_newAV` / `Perl_newHV` / `Perl_hv_store` / `Perl_sv_2iv` の
+  **extern (関数実体)** — いずれも 5.26 生まれ。それ以前はマクロのみで、
+  macrogen が同シグネチャの inline fn (`newAV` 等) を全対象版 × 両モード
+  で生成している (5.42-nt では `newAV`/`newHV` の生成体が無い点に注意 —
+  逆に Perl_ 名 extern は 5.26+ に必ずある)
+- したがって **5.22/5.24 も 5.20 と同じ吸収が必要**だった (§0''-3-2 の
+  「libperl-sys 層は green 済み」は正しいが、上位 crate は 6 エラーで
+  コンパイル不能だった)
+- 5.20 のみの追加分: `Perl_newXS_deffile` / `Perl_xs_boot_epilog`
+  (5.21.x 生まれ、`xs_boot!` 展開が参照)、`CvGV` が threaded でも THX
+  無し生成、`PadnameLEN` が THX 付き + `*const` (PADNAME=SV 時代)、
+  非 threaded の `PL_sv_undef` が実グローバル (immortals 配列は 5.28
+  生まれ → sv.rs の nt 経路に ver28 分岐)
+
+### 6-2. 吸収の設計 (コミット参照)
+
+- **thx alias 方式** (libperl-sys lib.rs の thx モジュール、
+  S_SvREFCNT_dec alias と同套): `newAV`/`newHV`/`hv_store`/`sv_2iv` の
+  生成体 shim を `#[cfg(not(perlapi_ver26))]` で `Perl_` 名に alias。
+  `sys::thx::Perl_newAV(my_perl)` が全版 × 両モードで書ける
+- **呼び出し側の thx 移行**: src/av.rs / hv.rs の `thx_call!` 3 箇所と
+  src/cv.rs の `CvGV` を `sys::thx::` 直呼びへ (THX 有無が「モード」
+  でなく「版 × 関数」で変わるため、thx_call! では 5.20 CvGV を吸収
+  できない — GH-20 の正規化層が実際の消費経路になった初例)
+- **`Op::class()` は ver26 ゲート**。COP 判定は版独立の内部 `is_cop`
+  (OP_NULL → op_targ の ex-COP マッピング込み、5.26+ は従来どおり
+  op_class 経由) に寄せ、`as_cop` / `first_cop` は全版で動く
+- **perl_core.rs**: 5.20 用 `Perl_newXS_deffile` / `Perl_xs_boot_epilog`
+  shim (5.22 実装のミラー、両モード)。`#![allow(unused_parens)]` 追加
+  (5.20 生成体の SvSCREAM_on 族 3 warning、下流 -D warnings 対策)
+- **src/pad.rs**: 5.20 は PadnamePV null チェック済みの SV に対する
+  `SvCUR` 直読み (生成体 PadnameLEN は THX 付きで Perl ハンドル無しの
+  `PadName::pv()` から呼べない)
+- **proto0 examples**: import の cfg ゲート化 (op0/op1: OPclass 等を
+  ver26 へ、pad0: padname/padnamelist を ver22 へ)、5.20 用の
+  `CvPADLIST` (xcv_padlist 直フィールド) / `GvLINE` (gp_line 平
+  フィールド) 分岐、102 に ver22 未満 skip フォールバック
+
+### 6-3. introspection の gv_line 版差 (実測)
+
+`our @hello` で昇格した glob の GvLINE (tests/introspection.rs:84):
+
+- 5.20: **7** (sub-ref-in-stash 最適化前 — `sub hello` が直接 glob を作る)
+- 5.22〜5.26: **8** (最適化下で `our @hello` の行が刻まれる)
+- 5.28+: **7** (昇格時に定義 sub の位置を引き継ぐよう変化)
+
+テストは cfg `all(perlapi_ver22, not(perlapi_ver28))` で 8、それ以外 7。
+
+### 6-4. 検証
+
+multi-perl `--downstream --downstream-test` (workspace test + examples):
+
+- 5.20/5.22/5.24/5.26 × threaded: **green** (workspace 19 suites + examples。
+  コンテナに Test2 が無いため xs-demo の perl_smoke は skip ガード経由)
+- 5.20/5.22/5.24/5.26 × non-threaded: **green** (PL_sv_undef 修正 +
+  target-downstream クリア後。初回 NG は 0.1.11 時代の stale target 起因の
+  rustc ICE / 早期 abort で、コード起因は PL_sv_undef の 1 件のみだった)
+- ホスト 5.42-threaded: build / test --workspace / test --examples /
+  clippy 回帰なし
+
+### 6-5. CI matrix
+
+rust.yml に 5.20/5.22/5.24/5.26 × 両モードの 8 セルを追加 (計 26 セル)。
+
+### 6-6. 残課題 (このラウンドのスコープ外)
+
+- §4 のとおり、下流 PartialEval の engine 側 ≤5.24 経路は PartialEval
+  セッションの担当 (probe セルの拡大で露出する)
+- macrogen の $PERL 無視 (メモリ `macrogen-ignores-perl-env`) は未着手

@@ -72,6 +72,13 @@ jobs:
       matrix:
         threaded: [ true, false ]
         perl-version:
+          # 5.20〜5.26 は libperl-macrogen 0.1.12 (apidoc data 1.15) +
+          # round-5.20-5.26 の compat 層 (OPclass/newAV 族の 5.26 境界、
+          # 5.20 の xs_boot/CvGV/Padname 対応) で green (GH-16 第 3 段)
+          - '5.20'
+          - '5.22'
+          - '5.24'
+          - '5.26'
           # 5.28/5.30 の SvREFCNT_dec/Padlist 系は libperl-macrogen 0.1.11
           # (apidoc data 1.14) で生成されるようになった (GH-16 第 2 段)
           - '5.28'

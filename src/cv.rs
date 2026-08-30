@@ -21,7 +21,7 @@
 
 use std::ptr::NonNull;
 
-use libperl_sys::{CV, OP, OPclass, PADLIST, SV, svtype};
+use libperl_sys::{CV, OP, PADLIST, SV, svtype};
 
 use crate::{Cop, Gv, Op, PadNames, Perl};
 
@@ -140,8 +140,11 @@ impl Cv {
     pub fn gv(&self, perl: &Perl) -> Option<Gv> {
         // Inferred cast: the generated `CvGV` takes `*const SV` on
         // most perls but `*const CV` on exactly 5.32 (apidoc type
-        // normalisation difference); `as *const _` fits both.
-        let gv = unsafe { crate::thx_call!(perl, CvGV, self.as_ptr() as *const _) };
+        // normalisation difference); `as *const _` fits both. Called
+        // through `sys::thx` because THX-ness varies by version, not
+        // just by build mode: on 5.20 the generated `CvGV` takes no
+        // `my_perl` even on threaded perl (the thx shim discards it).
+        let gv = unsafe { libperl_sys::thx::CvGV(perl.as_ptr(), self.as_ptr() as *const _) };
         Gv::from_raw(gv)
     }
 
@@ -168,8 +171,8 @@ impl Cv {
     pub fn first_cop(&self, perl: &Perl) -> Option<Cop> {
         let mut stack: Vec<Op> = self.root_op().into_iter().collect();
         while let Some(op) = stack.pop() {
-            if op.class(perl) == OPclass::OPclass_COP {
-                return op.as_cop(perl);
+            if let Some(cop) = op.as_cop(perl) {
+                return Some(cop);
             }
             // Push the sibling below the first kid so the kid is
             // taken first (preorder).

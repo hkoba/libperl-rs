@@ -9,9 +9,13 @@ pub use libperl_sys::op;
 use if_chain::if_chain;
 
 use libperl_sys::{
-    OP, OPclass, OPf_KIDS, binop, cop, cv, listop, logop, opcode, padop, pvop, sv, unop,
-    unop_aux,
+    OP, OPf_KIDS, binop, cop, cv, listop, logop, opcode, padop, pvop, sv, unop,
 };
+
+// OPclass は perl 5.26 生まれ (unop_aux は 5.22 生まれだが、利用箇所は
+// すべて ver26 ゲート内なので同じ cfg で束ねる)
+#[cfg(perlapi_ver26)]
+use libperl_sys::{OPclass, unop_aux};
 use libperl_proto0::Perl;
 
 use super::sv0::{Sv, VarName, sv_extract};

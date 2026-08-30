@@ -50,7 +50,12 @@ pub fn GvGP(gv: *const libperl_sys::gv) -> *const libperl_sys::gp {
 pub fn GvLINE(gv: *const libperl_sys::gv) -> u32 {
     let gp = GvGP(gv);
     assert_ne!(gp, std::ptr::null_mut());
-    unsafe {(*gp).gp_line()}
+    // 5.22 で gp_line が bitfield 化された (bindgen はメソッドを生成する)。
+    // 5.20 はまだ平フィールド。
+    #[cfg(perlapi_ver22)]
+    return unsafe {(*gp).gp_line()};
+    #[cfg(not(perlapi_ver22))]
+    return unsafe {(*gp).gp_line};
 }
 
 #[allow(non_snake_case)]

@@ -16,7 +16,8 @@ impl Hv {
     #[inline]
     pub fn new(perl: &Perl) -> Hv {
         unsafe {
-            let hv = crate::thx_call!(perl, Perl_newHV,);
+            // See `Av::new` — thx bridges the missing pre-5.26 extern.
+            let hv = libperl_sys::thx::Perl_newHV(perl.as_ptr());
             crate::thx_call!(perl, Perl_sv_2mortal, hv as *mut SV);
             Hv(NonNull::new(hv).expect("Perl_newHV returned null"))
         }
@@ -31,10 +32,11 @@ impl Hv {
         unsafe {
             let inc = sv_refcnt_inc(val.as_ptr());
             // `klen` is `I32` — caller-side cast; len always fits for
-            // realistic hash keys, no overflow check.
-            crate::thx_call!(
-                perl,
-                Perl_hv_store,
+            // realistic hash keys, no overflow check. Called through
+            // `sys::thx` because the `Perl_hv_store` extern is 5.26+
+            // (thx aliases the macro-generated `hv_store` shim below that).
+            libperl_sys::thx::Perl_hv_store(
+                perl.as_ptr(),
                 self.0.as_ptr(),
                 bytes.as_ptr() as *const ::core::ffi::c_char,
                 bytes.len() as _,

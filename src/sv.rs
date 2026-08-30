@@ -275,12 +275,23 @@ pub fn sv_undef_ptr(my_perl: *mut PerlInterpreter) -> *mut SV {
 }
 
 /// Pointer to the immortal `PL_sv_undef` (non-threaded build).
-#[cfg(not(perl_useithreads))]
+#[cfg(all(not(perl_useithreads), perlapi_ver28))]
 #[inline]
 pub fn sv_undef_ptr(_my_perl: *mut PerlInterpreter) -> *mut SV {
-    // In non-threaded Perl, `PL_sv_undef` is `#define`d to
+    // In non-threaded Perl 5.28+, `PL_sv_undef` is `#define`d to
     // `PL_sv_immortals[1]` in `perl.h`, and bindgen does not emit
     // a `PL_sv_undef` static. The `PL_sv_immortals` array does
     // exist as a global static, so we index into it directly.
     unsafe { &raw mut libperl_sys::PL_sv_immortals[1] as *mut SV }
+}
+
+/// Pointer to the immortal `PL_sv_undef` (non-threaded build,
+/// perl < 5.28).
+#[cfg(all(not(perl_useithreads), not(perlapi_ver28)))]
+#[inline]
+pub fn sv_undef_ptr(_my_perl: *mut PerlInterpreter) -> *mut SV {
+    // Before the 5.28 immortals-array rework, non-threaded
+    // `PL_sv_undef` is a plain global `SV`, emitted by bindgen as a
+    // static of its own.
+    unsafe { &raw mut libperl_sys::PL_sv_undef as *mut SV }
 }

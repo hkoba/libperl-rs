@@ -101,6 +101,23 @@ pub mod thx {
     // (apidoc data 1.15) の multi-perl 成果物で確認済み。
     #[cfg(not(perlapi_ver32))]
     pub use self::S_SvREFCNT_dec as Perl_SvREFCNT_dec;
+
+    // <5.26 互換: newAV / newHV / hv_store の関数形 (`Perl_` 名の
+    // extern) は perl 5.26 で生まれた。5.24 以前はマクロのみだが、
+    // macrogen がそのマクロを同シグネチャの inline fn として生成する
+    // (5.20〜5.24 x 両モードの multi-perl 成果物で確認済み) ので、
+    // その thx shim を `Perl_` 名でも使えるようにする。
+    #[cfg(not(perlapi_ver26))]
+    pub use self::newAV as Perl_newAV;
+    #[cfg(not(perlapi_ver26))]
+    pub use self::newHV as Perl_newHV;
+    #[cfg(not(perlapi_ver26))]
+    pub use self::hv_store as Perl_hv_store;
+    // `Perl_sv_2iv` の extern も 5.26 生まれ (それ以前は sv_2iv_flags
+    // のみ)。マクロ生成体 sv_2iv (= sv_2iv_flags(sv, SV_GMAGIC)) の
+    // shim を同名で使えるようにする。
+    #[cfg(not(perlapi_ver26))]
+    pub use self::sv_2iv as Perl_sv_2iv;
 }
 
 /// Perl version this binding was generated against (e.g. `"5.38.4"`).
