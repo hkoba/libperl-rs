@@ -1,6 +1,85 @@
 # 引継: perl 5.20〜5.26 対応ラウンド (libperl-sys 生成の最終段)
 
 作成: 2026-08-29 (perl-LibPerlRs-PartialEval セッションからの依頼指示書)。
+**進捗 (2026-08-30)**: §0'' に中間引継 — macrogen 0.1.12 リリース済み、
+§2 の libperl-sys 層は branch `round-5.20-5.26` で実装・検証済み。
+残り = テスト期待値の版分岐 (5.26) と **5.20 の上位 crate 移植** (§0''-3)。
+
+## 0''. 中間引継 (2026-08-30、macrogen 側セッションより)
+
+### 0''-1. 済んだこと
+
+**macrogen 側 (完了・リリース済み)**: 0.1.12 / apidoc data 1.15。
+5.26 の auto skip 62 件を実走再評価して 17 件恒久解除 (Padlist* 4 /
+S_SvREFCNT_dec 一族 / Padname·Padnamelist 全 8 / CxLABEL 等)、5.24 の
+skip 採取漏れ 21 件補充、5.22 の GvALIASED_SV_{on,off} (E0067) と
+5.22/5.24 nt 限定の S__is_utf8_char_slow (E0381)、5.28/5.30 の Padname*
+unskip、5.20 の Padname*REFCNT override MISS ノイズ解消。詳細は
+macrogen 側 `doc/plan/round-5.20-5.26.md` §0' (PR #21)。
+
+**本リポジトリ側 (branch `round-5.20-5.26`、commit 1286577 + a83072a)**:
+§2-1〜§2-3 相当を実装・検証済み:
+
+- macrogen 0.1.12 bump
+- perl_core.rs の手書き Padname compat 5 関数を削除 (0.1.12 の native
+  生成と E0428 衝突するため必須の追随)。再退行防止に
+  require-codegen.txt へ Padnamelist{MAX,ARRAY}/Padname{PV,LEN,TYPE} 追加
+- Perl_SvREFCNT_dec alias の cfg を not(perlapi_ver32) へ拡大
+  (perl_core.rs / lib.rs thx の 2 箇所とも。S_SvREFCNT_dec の 5.20〜5.30
+  × 両モード生成は multi-perl 成果物で確認済み)
+- OpSIBLING: perl_core.rs に cfg(not(perlapi_ver22)) shim +
+  require-codegen-since22.txt 新設 + build.rs の perl_minor >= 22 分岐
+- publish.tcl STEP 2 の cargo test 引数バグ修正
+
+**検証済み** (multi-perl `--downstream --libperl-rs` 実走):
+libperl-sys build + require は 5.20-threaded / 5.20-non-threaded /
+5.26-threaded / 5.28-threaded で green (5.22/5.24/5.30 × 両モードは
+compat 削除相当 probe で macrogen 側ラウンド検証済み)。ホスト 5.42 で
+build/test --workspace + test --examples green。
+
+### 0''-2. 発見: harness の downstream は libperl-sys まで
+
+multi-perl の `--downstream` は **/downstream/libperl-sys で cargo build**
+するだけで、上位 crate (libperl-rs lib / examples / proto0 / xs-demo) は
+`--downstream-test` (cargo test --workspace) で初めてコンパイルされる。
+「downstream green」の既報はすべて libperl-sys 層の話。§2 の残り作業の
+検証には `--downstream-test` を必ず付けること。
+
+### 0''-3. 残り作業 (このセッションの続き = 本書の本来の §2-5 以降)
+
+1. **5.26 の workspace test 1 fail**: `tests/introspection.rs:84`
+   `assert_eq!(hello.gv_line, Some(7))` が 5.26 実測 Some(8)。
+   `our @hello` で vivify された GV の行番号帰属の版差とみられる。
+   5.22/5.24 の実測値を採ってから期待値を版分岐する (5.28+ は 7 で green)。
+2. **5.24/5.22 の workspace test**: 未実測 (libperl-sys 層は green 済み)。
+   introspection 以外にも版差期待値が出る可能性あり。
+3. **5.20 の上位 crate 移植 (「OpSIBLING + α」の α、最大の残件)**:
+   libperl-rs (lib) 本体が 8 エラーでコンパイル不能 + proto0 examples。
+   実測エラー一覧 (5.20-threaded、tmp/multi-perl/out/5.20-threaded/
+   downstream-test.log @ macrogen リポジトリ):
+   - src/cv.rs:24, src/op.rs:25: `OPclass` import (enum は 5.22 生まれ)
+   - src/op.rs:148: `Perl_op_class` 不在 (5.22 生まれ)
+   - src/av.rs:22 / src/hv.rs:19,37: `Perl_newAV` / `Perl_newHV` /
+     `Perl_hv_store` 不在 (5.20 では別形)
+   - src/lib.rs:28 (thx_call! 経由 src/cv.rs:144): 5.20 の生成体
+     `CvGV(sv: *const SV) -> *mut GV` は **THX 無し** → thx_call が
+     my_perl を渡して E0061。版により THX 有無が変わる呼び出しの
+     吸収方法の設計が要る (thx_bindings 側で正規化されるか要確認)
+   - src/pad.rs:46: 5.20 の生成体
+     `PadnameLEN(my_perl, pn: *const PADNAME)` は **THX 付き + *const**
+     (PADNAME=SV 時代)。PadnamePV は `(pn: *const PADNAME)`。
+     5.22+ と形状が違うため Pad 系 wrapper に版分岐が要る
+   - proto0 examples: OPclass / unop_aux / padname/padnamelist 型 /
+     xpvcv.xcv_padlist_u フィールド / gp.gp_line がメソッド化、の各版差
+   - xs-demo: `my_test` 不在 (詳細未調査)
+4. **CI matrix 拡張** (§2-5): workspace test まで green になった版から
+   rust.yml に追加 (5.26 → 5.24 → 5.22 → 5.20 の順)。2026-08-30 時点では
+   意図的に未追加 (rust.yml は cargo build + test --workspace を全セルで
+   回すため、テスト赤のまま足すとセルが赤くなる)。
+5. **PartialEval probe** (§4): libperl-sys 層は通る見込みだが、engine の
+   ≤5.24 経路 (op_tree_sibling の cfg(not(perlapi_ver26)) 等) は
+   PartialEval 側の担当。
+
 下流 = perl-LibPerlRs-PartialEval (GH-16 の部分評価枠組み) の対応 perl
 拡大ラウンド第 3 段。前例:
 
