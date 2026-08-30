@@ -352,3 +352,25 @@ rust.yml に 5.20/5.22/5.24/5.26 × 両モードの 8 セルを追加 (計 26 �
 - §4 のとおり、下流 PartialEval の engine 側 ≤5.24 経路は PartialEval
   セッションの担当 (probe セルの拡大で露出する)
 - macrogen の $PERL 無視 (メモリ `macrogen-ignores-perl-env`) は未着手
+
+## 7. 下流での最終確認結果 (2026-08-30、PartialEval セッション追記)
+
+libperl-rs 0.4.5 + macrogen 0.1.12 公開後、PartialEval 側で §4 想定の
+engine 版差を 3 コミットで吸収 (1e0faa8 / 8e4c476 / 4a8c74a、branch
+evalcapture-plan):
+
+- SvOK 返り値型の揺れ (≤5.26 bool / ≥5.28 U32) → raw::sv_ok()
+- Perl_op_class / OPclass (5.26 新設) → raw::is_cop()、≤5.24 は
+  op_type (NEXTSTATE/DBSTATE) 判定
+- Perl_hv_fetch (5.26 実関数化) → 全版生成のマクロ版 thx::hv_fetch
+- Perl_savetmps (5.24 新設) → ≤5.22 は scope.h 旧マクロ
+  (save_strlen + PL_tmps_floor = PL_tmps_ix) をミラー
+- Perl_markstack_grow (5.20 は void 返し) → 返り値不使用で統一
+- split の 2 op 構成 (≤5.24 は pushre + split) → OP_PUSHRE を
+  cfg(not(perlapi_ver26)) で委譲 whitelist に追加
+- 非スレッド ≤5.26 の PL_sv_yes/PL_sv_no (PL_sv_immortals は 5.28
+  導入) → 個別グローバル参照の cfg 分岐
+
+PartialEval CI run 33294596668 (commit 4a8c74a): **全 26 セル green**
+(5.20〜5-latest × ithreads/no-ithreads、Test + PERL_DESTRUCT_LEVEL=2
+まで)。§4 の下流確認は完了 — 本ラウンドの目標達成。
