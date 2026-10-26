@@ -12,7 +12,7 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v6
@@ -94,4 +94,4 @@ jobs:
           # (macrogen side verified 5.44-threaded downstream green).
           - '5'
         target:
-          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
+          - { name: Linux, os: ubuntu-24.04, triple: x86_64-unknown-linux-gnu }
