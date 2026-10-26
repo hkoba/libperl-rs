@@ -21,8 +21,10 @@ use libperl_sys::{CV, PerlInterpreter, Perl_newXS, perl_alloc, perl_construct, p
 /// boundary where Rust's safe-typed world meets the C ABI.
 pub struct Perl {
     my_perl: NonNull<PerlInterpreter>,
-    args: Vec<CString>,
-    env: Vec<CString>,
+    /// What `perl_parse` was given; perl keeps pointing at both for
+    /// the interpreter's whole life (see [`ArgBlock`]).
+    args: ArgBlock,
+    env: ArgBlock,
 }
 
 // `NonNull<T>` is automatically `!Send !Sync`, which matches the Perl
@@ -39,8 +41,8 @@ impl Perl {
         unsafe { perl_construct(my_perl.as_ptr()) };
         Perl {
             my_perl,
-            args: Vec::new(),
-            env: Vec::new(),
+            args: ArgBlock::empty(),
+            env: ArgBlock::empty(),
         }
     }
 
@@ -78,45 +80,36 @@ impl Perl {
         let my_perl = NonNull::new(p).unwrap_or(NonNull::dangling());
         Perl {
             my_perl,
-            args: Vec::new(),
-            env: Vec::new(),
+            args: ArgBlock::empty(),
+            env: ArgBlock::empty(),
         }
     }
 
     /// `perl_parse` with an explicit args / envp slice.
+    ///
+    /// Both slices are copied into this `Perl` and stay valid until it
+    /// is dropped: perl keeps `PL_origargv` / `PL_origenviron` pointing
+    /// at them, and `$0 = ...` writes the new process title over the
+    /// argument strings (truncated to their total length, as in a real
+    /// perl process). Panics on an interior NUL byte, like `CString`.
     pub fn parse<S: AsRef<str>>(&mut self, args: &[S], envp: &[S]) -> i32 {
-        self.args = args
-            .iter()
-            .map(|a| CString::new(a.as_ref()).unwrap())
-            .collect();
-        self.env = envp
-            .iter()
-            .map(|a| CString::new(a.as_ref()).unwrap())
-            .collect();
+        self.args = ArgBlock::new(args.iter().map(|a| a.as_ref()));
+        self.env = ArgBlock::new(envp.iter().map(|a| a.as_ref()));
         self.perl_parse_inner()
     }
 
     /// `perl_parse` driven from `std::env::args()` / `vars()`.
     pub fn parse_env_args(&mut self, args: env::Args, envp: env::Vars) -> i32 {
-        self.args = args
-            .map(|a| CString::new(a).unwrap())
-            .collect();
-        self.env = envp
-            .map(|(k, v)| CString::new(format!("{k}={v}")).unwrap())
-            .collect();
-        self.perl_parse_inner()
+        let args: Vec<String> = args.collect();
+        let envp: Vec<String> = envp.map(|(k, v)| format!("{k}={v}")).collect();
+        self.parse(&args, &envp)
     }
 
     fn perl_parse_inner(&mut self) -> i32 {
-        unsafe {
-            perl_parse(
-                self.as_ptr(),
-                Some(xs_init as XsInitFn),
-                self.args.len() as c_int,
-                make_argv(&self.args).as_ptr() as *mut *mut c_char,
-                ensure_terminating_null(make_argv(&self.env)).as_ptr() as *mut *mut c_char,
-            )
-        }
+        let argc = self.args.len() as c_int;
+        let argv = self.args.as_mut_ptr();
+        let envp = self.env.as_mut_ptr();
+        unsafe { perl_parse(self.as_ptr(), Some(xs_init as XsInitFn), argc, argv, envp) }
     }
 
     /// `perl_run` — execute the parsed program's main body.
@@ -200,17 +193,66 @@ extern "C" fn xs_init() {
     unsafe { Perl_newXS(name, Some(boot_DynaLoader), file) };
 }
 
-// ─── small argv helpers ────────────────────────────────────────────
+// ─── argv / envp storage ───────────────────────────────────────────
 
-fn make_argv(args: &[CString]) -> Vec<*mut c_char> {
-    args.iter().map(|a| a.as_ptr() as *mut c_char).collect()
+/// Strings for `perl_parse`, laid out like a process's real `argv` /
+/// `environ`: one contiguous block of NUL-terminated strings plus a
+/// NULL-terminated pointer array.
+///
+/// perl does not copy either. `PL_origargv` / `PL_origenviron` keep
+/// pointing at them for the interpreter's whole life, and assigning
+/// `$0` (`S_set_dollarzero` in mg.c) writes the new process title over
+/// `PL_origargv[0]` and sets `PL_origargv[1..]` to NULL. `perl_parse`
+/// sizes that scratch area (`PL_origalen`) by how far the argument
+/// strings sit back to back, with a heuristic that also accepts gaps
+/// of up to a pointer size — separately allocated `CString`s could be
+/// taken for contiguous by accident and then overwritten past their
+/// ends. Keeping every string in one block, and the pointer array
+/// owned and writable, makes those writes land where perl expects.
+struct ArgBlock {
+    /// The strings, each with its NUL; empty for no strings. Never
+    /// read from Rust — it is the storage `ptrs` points into.
+    #[allow(dead_code)]
+    bytes: Box<[u8]>,
+    /// One pointer per string into `bytes`, then NULL.
+    ptrs: Vec<*mut c_char>,
 }
 
-fn ensure_terminating_null(mut argv: Vec<*mut c_char>) -> Vec<*mut c_char> {
-    if argv.last().is_none_or(|p| !p.is_null()) {
-        argv.push(ptr::null_mut());
+impl ArgBlock {
+    fn empty() -> Self {
+        ArgBlock {
+            bytes: Box::new([]),
+            ptrs: vec![ptr::null_mut()],
+        }
     }
-    argv
+
+    fn new<'a>(items: impl Iterator<Item = &'a str>) -> Self {
+        let mut bytes = Vec::new();
+        let mut starts = Vec::new();
+        for s in items {
+            // CString validates the interior-NUL rule (panics like the
+            // previous `CString::new(..).unwrap()` did).
+            let c = CString::new(s).unwrap();
+            starts.push(bytes.len());
+            bytes.extend_from_slice(c.as_bytes_with_nul());
+        }
+        // Box first: the pointers must refer to the final heap block.
+        let bytes: Box<[u8]> = bytes.into_boxed_slice();
+        let base = bytes.as_ptr() as *mut c_char;
+        let mut ptrs: Vec<*mut c_char> = starts.iter().map(|&o| base.wrapping_add(o)).collect();
+        ptrs.push(ptr::null_mut());
+        ArgBlock { bytes, ptrs }
+    }
+
+    /// Number of strings (`argc`).
+    fn len(&self) -> usize {
+        self.ptrs.len() - 1
+    }
+
+    /// The NULL-terminated pointer array, for `perl_parse`.
+    fn as_mut_ptr(&mut self) -> *mut *mut c_char {
+        self.ptrs.as_mut_ptr()
+    }
 }
 
 // ─── perl_call! macro ──────────────────────────────────────────────
