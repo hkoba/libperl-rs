@@ -98,8 +98,11 @@ END
     )
 
 else
+    # EOL になった Debian (perl:5.32 以前の bullseye/buster ベースのイメージ等) は
+    # deb.debian.org から pool が消えて 404 になるので archive.debian.org へ切り替える
     cmdList+=(
-        'apt-get update'
+        '. /etc/os-release; case "$VERSION_CODENAME" in stretch|buster|bullseye) echo "=== $VERSION_CODENAME is EOL, switching to archive.debian.org"; sed -i -E "s#(deb|security)\.debian\.org#archive.debian.org#g" /etc/apt/sources.list $(ls /etc/apt/sources.list.d/* 2>/dev/null); APT_OPTS="-o Acquire::Check-Valid-Until=false";; esac'
+        'apt-get update $APT_OPTS'
         "apt-get install -y $o_force_yes llvm-dev libclang-dev clang"
     )
 fi
